@@ -3,23 +3,21 @@
 //==============================================================================
 const System = globalThis;
 import { Scene, SceneManager, DomLayout, DomNode } from "../../../libs/dom.js/import.js";
+import { GeminiClient, PlaybookSession } from "../../../libs/playbook-engine.js/import.js";
 import { Secrets } from "../secrets.js";
-import { GeminiClient } from "../geminiclient.js";
 
 
 //==============================================================================
 // 플레이 씬.
-// - 선택된 book 인스턴스를 받아 자동 진행하는 상황극 화면.
-// - 매 턴: 사용자 입력 -> 누적 메시지 + systemPrompt 로 Gemini 호출 -> 응답 표시.
+// - PlaybookSession 인스턴스 위에 UI 레이어만 얹는다.
+// - 매 턴: 사용자 입력 -> session.act(input) -> 응답을 화면에 표시.
 //==============================================================================
 export class PlayScene extends Scene {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
 	/** @private @type { object } */ #book;
-	/** @private @type { GeminiClient | null } */ #geminiClient;
-	/** @private @type { Array<{ role: string, text: string }> } */ #messageHistory;
-	/** @private @type { boolean } */ #isWaitingResponse;
+	/** @private @type { PlaybookSession | null } */ #session;
 
 	/** @private @type { DomNode | null } */ #titleNode;
 	/** @private @type { DomNode | null } */ #messageListNode;
@@ -37,9 +35,7 @@ export class PlayScene extends Scene {
 		super();
 		this.setName("PlayScene");
 		this.#book = book;
-		this.#geminiClient = null;
-		this.#messageHistory = [];
-		this.#isWaitingResponse = false;
+		this.#session = null;
 
 		this.#titleNode = null;
 		this.#messageListNode = null;
@@ -56,6 +52,16 @@ export class PlayScene extends Scene {
 	 */
 	getBook() {
 		return this.#book;
+	}
+
+	//==============================================================================
+	// 세션 반환.
+	//==============================================================================
+	/**
+	 * @returns { PlaybookSession | null }
+	 */
+	getSession() {
+		return this.#session;
 	}
 
 	//==============================================================================
@@ -107,7 +113,11 @@ export class PlayScene extends Scene {
 	onEnter() {
 		const apiKey = Secrets.get("geminiApiKey", "");
 		const modelName = Secrets.get("geminiModel", "gemini-2.5-pro");
-		this.#geminiClient = new GeminiClient(apiKey, modelName);
+		const geminiClient = new GeminiClient(apiKey, modelName);
+		this.#session = new PlaybookSession({
+			book: this.getBook(),
+			llmClient: geminiClient
+		});
 
 		this.buildUI();
 		this.startScenario();
@@ -249,10 +259,11 @@ export class PlayScene extends Scene {
 
 	//==============================================================================
 	// 시나리오 자동 시작.
-	// - book.opening 을 시스템 안내(model 메시지가 아닌 회색 박스)로 표시한다.
-	// - 첫 사용자 입력 전까지 AI 호출은 하지 않는다.
 	//==============================================================================
 	startScenario() {
+		const session = this.getSession();
+		session.start();
+
 		const book = this.getBook();
 		const opening = book.opening ?? "";
 		if (opening !== "") {
@@ -280,7 +291,8 @@ export class PlayScene extends Scene {
 	// 전송 처리.
 	//==============================================================================
 	async handleSendClick() {
-		if (this.#isWaitingResponse) {
+		const session = this.getSession();
+		if (session.isWaitingResponse()) {
 			return;
 		}
 		const userInputNode = this.getUserInputNode();
@@ -291,7 +303,7 @@ export class PlayScene extends Scene {
 
 		userInputNode.setValue("");
 		this.appendMessage("user", inputValue);
-		await this.requestAIResponse();
+		await this.requestAIResponse(inputValue);
 	}
 
 	//==============================================================================
@@ -306,19 +318,19 @@ export class PlayScene extends Scene {
 	//==============================================================================
 	// AI 응답 요청.
 	//==============================================================================
-	async requestAIResponse() {
-		this.#isWaitingResponse = true;
+	/**
+	 * @param { string } userInput
+	 */
+	async requestAIResponse(userInput) {
 		this.setStatusText("AI 응답 생성 중...");
 		this.setSendButtonEnabled(false);
 
 		const thinkingNode = this.appendMessage("model", "...");
 
+		const session = this.getSession();
 		try {
-			const book = this.getBook();
-			const systemPrompt = book.systemPrompt ?? "";
-			const responseText = await this.#geminiClient.generate(systemPrompt, this.#messageHistory);
+			const responseText = await session.act(userInput);
 			this.removeMessageNode(thinkingNode);
-			this.#messageHistory.push({ role: "model", text: responseText });
 			this.appendMessage("model", responseText);
 			this.setStatusText("");
 		}
@@ -329,14 +341,13 @@ export class PlayScene extends Scene {
 			this.setStatusText("오류");
 		}
 		finally {
-			this.#isWaitingResponse = false;
 			this.setSendButtonEnabled(true);
 		}
 	}
 
 	//==============================================================================
 	// 메시지 박스 추가. (role: user | model | scene | system)
-	// - user 는 히스토리에도 누적된다. model 은 호출처에서 별도 push 한다.
+	// - 히스토리 관리는 PlaybookSession 이 담당하므로 본 메서드는 UI 표시만 수행한다.
 	//==============================================================================
 	/**
 	 * @param { string } role
@@ -353,7 +364,6 @@ export class PlayScene extends Scene {
 			backgroundColor = "#0e3a5c";
 			labelText = "나";
 			labelColor = "#9dcdf5";
-			this.#messageHistory.push({ role: "user", text: text });
 		}
 		else if (role === "model") {
 			backgroundColor = "#2a2a2c";
@@ -364,7 +374,6 @@ export class PlayScene extends Scene {
 			backgroundColor = "#2a2a2c";
 			labelText = "도입";
 			labelColor = "#f5c98f";
-			this.#messageHistory.push({ role: "user", text: text });
 		}
 		else if (role === "system") {
 			backgroundColor = "#33333a";
