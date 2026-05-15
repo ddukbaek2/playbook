@@ -1,0 +1,13 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Playbook",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://127.0.0.1:6001/launch.html",
+			"webRoot": "${workspaceFolder}",
+			"preLaunchTask": "Start Live Server"
+		}
+	]
+}
