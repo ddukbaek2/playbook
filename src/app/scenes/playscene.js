@@ -3,7 +3,7 @@
 //==============================================================================
 const System = globalThis;
 import { Scene, SceneManager, DomLayout, DomNode, Storage } from "../../../libs/dom.js/import.js";
-import { GeminiClient, PlaybookSession, Persona } from "../../../libs/playbook-engine.js/import.js";
+import { GeminiClient, PlaybookSession, Persona, Character } from "../../../libs/playbook-engine.js/import.js";
 import { Secrets } from "../secrets.js";
 
 
@@ -24,6 +24,7 @@ export class PlayScene extends Scene {
 	/** @private @type { DomNode | null } */ #userInputNode;
 	/** @private @type { DomNode | null } */ #sendButtonNode;
 	/** @private @type { DomNode | null } */ #statusNode;
+	/** @private @type { DomNode | null } */ #statsPanelNode;
 
 	//==============================================================================
 	// 생성.
@@ -42,6 +43,7 @@ export class PlayScene extends Scene {
 		this.#userInputNode = null;
 		this.#sendButtonNode = null;
 		this.#statusNode = null;
+		this.#statsPanelNode = null;
 	}
 
 	//==============================================================================
@@ -105,6 +107,16 @@ export class PlayScene extends Scene {
 	}
 
 	//==============================================================================
+	// 스탯 패널 노드 반환.
+	//==============================================================================
+	/**
+	 * @returns { DomNode | null }
+	 */
+	getStatsPanelNode() {
+		return this.#statsPanelNode;
+	}
+
+	//==============================================================================
 	// 스토리지 키 반환.
 	//==============================================================================
 	/**
@@ -131,6 +143,10 @@ export class PlayScene extends Scene {
 			name: "플레이어"
 		});
 
+		const character = new Character({
+			name: "플레이어"
+		});
+
 		const storageKey = this.getStorageKey();
 		const savedMessageHistory = Storage.getJson(storageKey, null);
 
@@ -138,10 +154,12 @@ export class PlayScene extends Scene {
 			book: this.getBook(),
 			llmClient: geminiClient,
 			persona: persona,
+			character: character,
 			messageHistory: savedMessageHistory
 		});
 
 		this.buildUI();
+		this.refreshStatsPanel();
 		const hasSavedHistory = (savedMessageHistory !== null) && (savedMessageHistory.length > 0);
 		if (hasSavedHistory) {
 			this.resumeScenario();
@@ -226,6 +244,23 @@ export class PlayScene extends Scene {
 								this.#statusNode = node;
 							})
 					),
+				DomLayout.create("div")
+					.style({
+						flex: "0 0 auto",
+						display: "flex",
+						flexDirection: "row",
+						flexWrap: "wrap",
+						alignItems: "center",
+						gap: "12px",
+						padding: "8px 16px",
+						borderBottom: "1px solid #333333",
+						backgroundColor: "#1f1f20",
+						fontSize: "12px",
+						color: "#cccccc"
+					})
+					.bind((node) => {
+						this.#statsPanelNode = node;
+					}),
 				DomLayout.create("div")
 					.style({
 						flex: "1 1 auto",
@@ -575,5 +610,69 @@ export class PlayScene extends Scene {
 		element.disabled = !enabled;
 		element.style.opacity = enabled ? "1" : "0.5";
 		element.style.cursor = enabled ? "text" : "not-allowed";
+	}
+
+	//==============================================================================
+	// 스탯 패널 갱신.
+	// - 세션의 character 를 읽어 능력치 / 자원 / 상태를 한 줄에 표시한다.
+	// - 호출 시마다 패널의 자식 노드를 비우고 다시 그린다.
+	//==============================================================================
+	refreshStatsPanel() {
+		const statsPanelNode = this.getStatsPanelNode();
+		if (statsPanelNode === null) {
+			return;
+		}
+		statsPanelNode.removeChildren();
+
+		const session = this.getSession();
+		if (session === null) {
+			return;
+		}
+		const character = session.getCharacter();
+		if (character === null) {
+			return;
+		}
+
+		const name = character.getName();
+		const strength = character.getStrength();
+		const dexterity = character.getDexterity();
+		const intelligence = character.getIntelligence();
+		const luck = character.getLuck();
+		const health = character.getHealth();
+		const maxHealth = character.getMaxHealth();
+		const stamina = character.getStamina();
+		const maxStamina = character.getMaxStamina();
+		const mana = character.getMana();
+		const maxMana = character.getMaxMana();
+		const statuses = character.getStatuses();
+		let statusesText = statuses.join(", ");
+		if (statusesText === "") {
+			statusesText = "—";
+		}
+
+		const nameStyle = {
+			fontWeight: "bold",
+			color: "#ffffff",
+			whiteSpace: "nowrap"
+		};
+		const itemStyle = {
+			whiteSpace: "nowrap"
+		};
+		const separatorStyle = {
+			color: "#444444"
+		};
+
+		DomLayout.create("div").text(name).style(nameStyle).build(statsPanelNode);
+		DomLayout.create("div").text("│").style(separatorStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`힘 ${strength}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`민 ${dexterity}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`지 ${intelligence}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`운 ${luck}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text("│").style(separatorStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`체력 ${health}/${maxHealth}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`기력 ${stamina}/${maxStamina}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`마력 ${mana}/${maxMana}`).style(itemStyle).build(statsPanelNode);
+		DomLayout.create("div").text("│").style(separatorStyle).build(statsPanelNode);
+		DomLayout.create("div").text(`상태: ${statusesText}`).style(itemStyle).build(statsPanelNode);
 	}
 }

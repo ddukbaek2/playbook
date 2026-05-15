@@ -24,6 +24,7 @@ export class PlaybookSession extends Object {
 	/** @private @type { object } */ #book;
 	/** @private @type { object } */ #llmClient;
 	/** @private @type { object | null } */ #persona;
+	/** @private @type { object | null } */ #character;
 	/** @private @type { Array<{ role: string, text: string }> } */ #messageHistory;
 	/** @private @type { boolean } */ #isWaitingResponse;
 	/** @private @type { boolean } */ #isStarted;
@@ -36,6 +37,7 @@ export class PlaybookSession extends Object {
 	 * @param { object } options.book
 	 * @param { object } options.llmClient
 	 * @param { object } [options.persona]
+	 * @param { object } [options.character]
 	 * @param { Array<{ role: string, text: string }> } [options.messageHistory]
 	 */
 	constructor(options) {
@@ -50,9 +52,11 @@ export class PlaybookSession extends Object {
 		}
 		const initialMessageHistory = options.messageHistory ?? null;
 		const persona = options.persona ?? null;
+		const character = options.character ?? null;
 		this.#book = book;
 		this.#llmClient = llmClient;
 		this.#persona = persona;
+		this.#character = character;
 		this.#messageHistory = (initialMessageHistory !== null) ? initialMessageHistory.slice() : [];
 		this.#isWaitingResponse = false;
 		this.#isStarted = this.#messageHistory.length > 0;
@@ -86,6 +90,16 @@ export class PlaybookSession extends Object {
 	 */
 	getPersona() {
 		return this.#persona;
+	}
+
+	//==============================================================================
+	// 등장인물(주인공) 반환. (없으면 null)
+	//==============================================================================
+	/**
+	 * @returns { object | null }
+	 */
+	getCharacter() {
+		return this.#character;
 	}
 
 	//==============================================================================
