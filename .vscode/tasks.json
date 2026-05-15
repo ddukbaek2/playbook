@@ -6,6 +6,45 @@
 			"type": "shell",
 			"command": "${command:extension.liveServer.goOnline}",
 			"problemMatcher": []
+		},
+		{
+			"label": "Build",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"${workspaceFolder}/tools/build.js"
+			],
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Deploy",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"${workspaceFolder}/tools/deploy.js"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared",
+				"clear": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Build and Deploy",
+			"dependsOrder": "sequence",
+			"dependsOn": ["Build", "Deploy"],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
 		}
 	]
 }
