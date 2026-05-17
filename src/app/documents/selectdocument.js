@@ -2,20 +2,20 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Scene, SceneManager, DomLayout, DomNode } from "../../../libs/dom.js/import.js";
+import { Document, DocumentManager, Layout, Element } from "../../../libs/document-engine.js/import.js";
 
 
 //==============================================================================
-// 상황극 선택 씬.
+// 상황극 선택 도큐먼트.
 // - assets/data/books.json 을 로드해 카드 목록으로 보여준다.
-// - 카드 클릭 시 PlayScene 인스턴스를 생성해 진입한다.
+// - 카드 클릭 시 PlayDocument 인스턴스를 생성해 진입한다.
 //==============================================================================
-export class SelectScene extends Scene {
+export class SelectDocument extends Document {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
-	/** @private @type { DomNode | null } */ #listContainerNode;
-	/** @private @type { DomNode | null } */ #statusNode;
+	/** @private @type { Element | null } */ #listContainerElement;
+	/** @private @type { Element | null } */ #statusElement;
 
 	//==============================================================================
 	// 생성.
@@ -25,29 +25,29 @@ export class SelectScene extends Scene {
 	 */
 	constructor() {
 		super();
-		this.setName("SelectScene");
-		this.#listContainerNode = null;
-		this.#statusNode = null;
+		this.setName("SelectDocument");
+		this.#listContainerElement = null;
+		this.#statusElement = null;
 	}
 
 	//==============================================================================
-	// 리스트 컨테이너 노드 반환.
+	// 리스트 컨테이너 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getListContainerNode() {
-		return this.#listContainerNode;
+	getListContainerElement() {
+		return this.#listContainerElement;
 	}
 
 	//==============================================================================
-	// 상태 텍스트 노드 반환.
+	// 상태 텍스트 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getStatusNode() {
-		return this.#statusNode;
+	getStatusElement() {
+		return this.#statusElement;
 	}
 
 	//==============================================================================
@@ -65,7 +65,7 @@ export class SelectScene extends Scene {
 	// UI 구성.
 	//==============================================================================
 	buildUI() {
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				position: "absolute",
 				left: "0",
@@ -76,7 +76,7 @@ export class SelectScene extends Scene {
 				flexDirection: "column"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "0 0 auto",
 						display: "flex",
@@ -88,7 +88,7 @@ export class SelectScene extends Scene {
 						gap: "12px"
 					})
 					.children(
-						DomLayout.create("button")
+						Layout.create("button")
 							.text("← 뒤로")
 							.style({
 								padding: "6px 12px",
@@ -102,25 +102,25 @@ export class SelectScene extends Scene {
 							.on("click", () => {
 								this.handleBackClick();
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text("상황극 선택")
 							.style({
 								fontSize: "16px",
 								fontWeight: "bold",
 								color: "#ffffff"
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text("")
 							.style({
 								marginLeft: "auto",
 								fontSize: "12px",
 								color: "#888888"
 							})
-							.bind((node) => {
-								this.#statusNode = node;
+							.bind((element) => {
+								this.#statusElement = element;
 							})
 					),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "1 1 auto",
 						overflowY: "auto",
@@ -130,8 +130,8 @@ export class SelectScene extends Scene {
 						gap: "16px",
 						alignContent: "start"
 					})
-					.bind((node) => {
-						this.#listContainerNode = node;
+					.bind((element) => {
+						this.#listContainerElement = element;
 					})
 			)
 			.build(this);
@@ -165,9 +165,9 @@ export class SelectScene extends Scene {
 	 * @param { Array<object> } books
 	 */
 	renderBooks(books) {
-		const listContainerNode = this.getListContainerNode();
+		const listContainerElement = this.getListContainerElement();
 		for (const book of books) {
-			this.appendBookCard(book, listContainerNode);
+			this.appendBookCard(book, listContainerElement);
 		}
 	}
 
@@ -176,14 +176,14 @@ export class SelectScene extends Scene {
 	//==============================================================================
 	/**
 	 * @param { object } book
-	 * @param { DomNode } parentNode
+	 * @param { Element } parentElement
 	 */
-	appendBookCard(book, parentNode) {
+	appendBookCard(book, parentElement) {
 		const bookTitle = book.title ?? "(제목 없음)";
 		const bookAuthor = book.author ?? "";
 		const bookDescription = book.description ?? "";
 
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "column",
@@ -205,20 +205,20 @@ export class SelectScene extends Scene {
 				this.handleBookClick(book);
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(bookTitle)
 					.style({
 						fontSize: "16px",
 						fontWeight: "bold",
 						color: "#ffffff"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(bookAuthor)
 					.style({
 						fontSize: "12px",
 						color: "#888888"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(bookDescription)
 					.style({
 						fontSize: "13px",
@@ -227,7 +227,7 @@ export class SelectScene extends Scene {
 						marginTop: "4px"
 					})
 			)
-			.build(parentNode);
+			.build(parentElement);
 	}
 
 	//==============================================================================
@@ -237,8 +237,8 @@ export class SelectScene extends Scene {
 	 * @param { string } text
 	 */
 	setStatusText(text) {
-		const statusNode = this.getStatusNode();
-		statusNode.setText(text);
+		const statusElement = this.getStatusElement();
+		statusElement.setText(text);
 	}
 
 	//==============================================================================
@@ -251,17 +251,17 @@ export class SelectScene extends Scene {
 		const timestamp = System.Date.now();
 		const randomSuffix = System.Math.random().toString(36).substring(2, 8);
 		const slotId = `${timestamp}_${randomSuffix}`;
-		const { PlayScene } = await import("./playscene.js");
-		const playScene = new PlayScene({ book: book, slotId: slotId });
-		SceneManager.getInstance().replace(playScene);
+		const { PlayDocument } = await import("./playdocument.js");
+		const playDocument = new PlayDocument({ book: book, slotId: slotId });
+		DocumentManager.getInstance().replace(playDocument, { transition: "scale-in" });
 	}
 
 	//==============================================================================
 	// 뒤로가기 처리.
 	//==============================================================================
 	async handleBackClick() {
-		const { TitleScene } = await import("./titlescene.js");
-		const titleScene = new TitleScene();
-		SceneManager.getInstance().replace(titleScene);
+		const { TitleDocument } = await import("./titledocument.js");
+		const titleDocument = new TitleDocument();
+		DocumentManager.getInstance().replace(titleDocument, { transition: "slide-right" });
 	}
 }

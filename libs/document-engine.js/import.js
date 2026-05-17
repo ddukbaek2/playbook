@@ -9,8 +9,18 @@ export const System = globalThis;
 //==============================================================================
 export { Object } from "./src/core/object.js";
 export { Storage } from "./src/core/storage.js";
-export { DomNode } from "./src/core/domnode.js";
-export { DomLayout } from "./src/core/domlayout.js";
-export { Scene } from "./src/core/scene.js";
-export { SceneManager } from "./src/core/scenemanager.js";
+export { Element } from "./src/core/element.js";
+export { Layout } from "./src/core/layout.js";
+export { Document } from "./src/core/document.js";
+export { DocumentManager } from "./src/core/documentmanager.js";
+export {
+	Transition,
+	NoneTransition,
+	FadeTransition,
+	SlideLeftTransition,
+	SlideRightTransition,
+	ScaleInTransition,
+	PushUpTransition,
+	resolveTransition
+} from "./src/core/transition.js";
 export { Application } from "./src/core/application.js";

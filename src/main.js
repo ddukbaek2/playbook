@@ -2,9 +2,9 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Application } from "../libs/dom.js/import.js";
+import { Application } from "../libs/document-engine.js/import.js";
 import { Secrets } from "./app/secrets.js";
-import { TitleScene } from "./app/scenes/titlescene.js";
+import { TitleDocument } from "./app/documents/titledocument.js";
 
 
 //==============================================================================
@@ -16,7 +16,7 @@ async function bootstrap() {
 	const application = Application.getInstance();
 	application.run({
 		containerElementId: "app",
-		initialSceneClass: TitleScene
+		initialDocumentClass: TitleDocument
 	});
 }
 

@@ -3,81 +3,81 @@
 //==============================================================================
 const System = globalThis;
 import { Object } from "./object.js";
-import { DomNode } from "./domnode.js";
+import { Element } from "./element.js";
 
 
 //==============================================================================
-// DOM 노드 레이아웃 빌더.
-// - 지역 변수 없이 DOM 계층 구조를 선언적으로 구성하는 플루언트 빌더.
+// Element 레이아웃 빌더.
+// - 지역 변수 없이 Element 계층 구조를 선언적으로 구성하는 플루언트 빌더.
 //
 // 사용 예:
-//   const panel = DomLayout.create("div")
+//   const panel = Layout.create("div")
 //       .name("chat-panel")
 //       .style({ padding: "10px", color: "#fff" })
 //       .children(
-//           DomLayout.create("button")
+//           Layout.create("button")
 //               .text("시작")
 //               .on("click", (event) => { ... })
 //       )
 //       .build();
 //==============================================================================
-export class DomLayout extends Object {
+export class Layout extends Object {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
-	/** @private @type { DomNode } */ #node;
-	/** @private @type { DomLayout[] } */ #childLayouts;
-	/** @private @type { DomNode | null } */ #parentNode;
+	/** @private @type { Element } */ #element;
+	/** @private @type { Layout[] } */ #childLayouts;
+	/** @private @type { Element | null } */ #parentElement;
 
 	//==============================================================================
 	// 생성.
 	//==============================================================================
 	/**
-	 * @param { Function } [nodeClass]
+	 * @param { Function } [elementClass]
 	 * @param { string } [tagName]
 	 */
-	constructor(nodeClass, tagName) {
+	constructor(elementClass, tagName) {
 		super();
-		const NodeClass = nodeClass ?? DomNode;
-		this.#node = new NodeClass(tagName);
+		const ElementClass = elementClass ?? Element;
+		this.#element = new ElementClass(tagName);
 		this.#childLayouts = [];
-		this.#parentNode = null;
+		this.#parentElement = null;
 	}
 
 	//==============================================================================
-	// 레이아웃 인스턴스 생성. (기본 DomNode + 태그명 지정)
+	// 레이아웃 인스턴스 생성. (기본 Element + 태그명 지정)
 	//==============================================================================
 	/**
 	 * @param { string } [tagName]
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	static create(tagName = "div") {
-		const domLayout = new DomLayout(DomNode, tagName);
-		return domLayout;
+		const layout = new Layout(Element, tagName);
+		return layout;
 	}
 
 	//==============================================================================
-	// 레이아웃 인스턴스 생성. (커스텀 DomNode 서브클래스)
+	// 레이아웃 인스턴스 생성. (커스텀 Element 서브클래스)
 	//==============================================================================
 	/**
-	 * @param { Function } nodeClass
+	 * @param { Function } elementClass
 	 * @param { string } [tagName]
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
-	static createWith(nodeClass, tagName) {
-		const domLayout = new DomLayout(nodeClass, tagName);
-		return domLayout;
+	static createWith(elementClass, tagName) {
+		const layout = new Layout(elementClass, tagName);
+		return layout;
 	}
 
 	//==============================================================================
-	// 빌드 대상 노드 직접 접근.
+	// 빌드 대상 Element 직접 접근.
 	//==============================================================================
 	/**
 	 * @param { Function } callback
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	apply(callback) {
-		callback(this.#node);
+		callback(this.#element);
 		return this;
 	}
 
@@ -86,10 +86,10 @@ export class DomLayout extends Object {
 	//==============================================================================
 	/**
 	 * @param { boolean } active
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	active(active) {
-		this.#node.setActive(active);
+		this.#element.setActive(active);
 		return this;
 	}
 
@@ -98,10 +98,10 @@ export class DomLayout extends Object {
 	//==============================================================================
 	/**
 	 * @param { string } name
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	name(name) {
-		this.#node.setName(name);
+		this.#element.setName(name);
 		return this;
 	}
 
@@ -110,10 +110,10 @@ export class DomLayout extends Object {
 	//==============================================================================
 	/**
 	 * @param { string } text
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	text(text) {
-		this.#node.setText(text);
+		this.#element.setText(text);
 		return this;
 	}
 
@@ -122,10 +122,10 @@ export class DomLayout extends Object {
 	//==============================================================================
 	/**
 	 * @param { object } styleObject
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	style(styleObject) {
-		this.#node.setStyle(styleObject);
+		this.#element.setStyle(styleObject);
 		return this;
 	}
 
@@ -134,10 +134,10 @@ export class DomLayout extends Object {
 	//==============================================================================
 	/**
 	 * @param { string } className
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	addClass(className) {
-		this.#node.addClass(className);
+		this.#element.addClass(className);
 		return this;
 	}
 
@@ -147,10 +147,10 @@ export class DomLayout extends Object {
 	/**
 	 * @param { string } key
 	 * @param { string } value
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	attr(key, value) {
-		this.#node.setAttribute(key, value);
+		this.#element.setAttribute(key, value);
 		return this;
 	}
 
@@ -160,10 +160,10 @@ export class DomLayout extends Object {
 	/**
 	 * @param { string } eventName
 	 * @param { Function } callback
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	on(eventName, callback) {
-		this.#node.on(eventName, callback);
+		this.#element.on(eventName, callback);
 		return this;
 	}
 
@@ -171,8 +171,8 @@ export class DomLayout extends Object {
 	// 자식 레이아웃 추가.
 	//==============================================================================
 	/**
-	 * @param { ...DomLayout } layouts
-	 * @returns { DomLayout }
+	 * @param { ...Layout } layouts
+	 * @returns { Layout }
 	 */
 	children(...layouts) {
 		for (const layout of layouts) {
@@ -182,26 +182,26 @@ export class DomLayout extends Object {
 	}
 
 	//==============================================================================
-	// 부모 노드 설정.
+	// 부모 Element 설정.
 	//==============================================================================
 	/**
-	 * @param { DomNode } parentNode
-	 * @returns { DomLayout }
+	 * @param { Element } parentElement
+	 * @returns { Layout }
 	 */
-	parent(parentNode) {
-		this.#parentNode = parentNode;
+	parent(parentElement) {
+		this.#parentElement = parentElement;
 		return this;
 	}
 
 	//==============================================================================
-	// 빌드 후 노드 외부 참조용 콜백 호출.
+	// 빌드 후 Element 외부 참조용 콜백 호출.
 	//==============================================================================
 	/**
 	 * @param { Function } callback
-	 * @returns { DomLayout }
+	 * @returns { Layout }
 	 */
 	bind(callback) {
-		callback(this.#node);
+		callback(this.#element);
 		return this;
 	}
 
@@ -211,18 +211,18 @@ export class DomLayout extends Object {
 	// - parent 인자나 parent() 로 지정한 부모가 있으면 자식으로 추가한다.
 	//==============================================================================
 	/**
-	 * @param { DomNode } [parent]
-	 * @returns { DomNode }
+	 * @param { Element } [parent]
+	 * @returns { Element }
 	 */
 	build(parent) {
 		const childLayouts = this.#childLayouts;
 		for (const childLayout of childLayouts) {
-			childLayout.build(this.#node);
+			childLayout.build(this.#element);
 		}
-		const targetParent = parent ?? this.#parentNode;
+		const targetParent = parent ?? this.#parentElement;
 		if (targetParent) {
-			targetParent.addChild(this.#node);
+			targetParent.addChild(this.#element);
 		}
-		return this.#node;
+		return this.#element;
 	}
 }

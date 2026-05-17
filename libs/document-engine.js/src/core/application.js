@@ -3,20 +3,20 @@
 //==============================================================================
 const System = globalThis;
 import { Object } from "./object.js";
-import { DomNode } from "./domnode.js";
-import { SceneManager } from "./scenemanager.js";
+import { Element } from "./element.js";
+import { DocumentManager } from "./documentmanager.js";
 
 
 //==============================================================================
 // 애플리케이션.
-// - 부트스트랩과 루트 노드 셋업을 담당한다.
+// - 부트스트랩과 루트 Element 셋업을 담당한다.
 //==============================================================================
 export class Application extends Object {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
 	/** @private @static @type { Application | null } */ static #instance = null;
-	/** @private @type { DomNode | null } */ #rootNode;
+	/** @private @type { Element | null } */ #rootElement;
 
 	//==============================================================================
 	// 생성.
@@ -26,7 +26,7 @@ export class Application extends Object {
 	 */
 	constructor() {
 		super();
-		this.#rootNode = null;
+		this.#rootElement = null;
 	}
 
 	//==============================================================================
@@ -43,37 +43,37 @@ export class Application extends Object {
 	}
 
 	//==============================================================================
-	// 루트 노드 반환.
+	// 루트 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getRootNode() {
-		return this.#rootNode;
+	getRootElement() {
+		return this.#rootElement;
 	}
 
 	//==============================================================================
 	// 실행.
-	// - 지정한 HTML 컨테이너 위에 루트 DomNode 를 마운트한다.
-	// - 초기 씬을 생성해 SceneManager 에 등록한다.
+	// - 지정한 HTML 컨테이너 위에 루트 Element 를 마운트한다.
+	// - 초기 도큐먼트를 생성해 DocumentManager 에 등록한다.
 	//==============================================================================
 	/**
 	 * @param { object } options
 	 * @param { string } options.containerElementId
-	 * @param { Function } options.initialSceneClass
+	 * @param { Function } options.initialDocumentClass
 	 */
 	run(options) {
 		const containerElementId = options.containerElementId;
-		const initialSceneClass = options.initialSceneClass;
+		const initialDocumentClass = options.initialDocumentClass;
 
-		const containerElement = System.document.getElementById(containerElementId);
-		if (containerElement === null) {
+		const containerHtmlElement = System.document.getElementById(containerElementId);
+		if (containerHtmlElement === null) {
 			throw new System.Error(`'#${containerElementId}' 컨테이너를 찾을 수 없습니다.`);
 		}
 
-		const rootNode = new DomNode("div");
-		rootNode.setName("Root");
-		rootNode.setStyle({
+		const rootElement = new Element("div");
+		rootElement.setName("Root");
+		rootElement.setStyle({
 			position: "absolute",
 			left: "0",
 			top: "0",
@@ -81,14 +81,14 @@ export class Application extends Object {
 			height: "100%",
 			boxSizing: "border-box"
 		});
-		const rootElement = rootNode.getElement();
-		containerElement.appendChild(rootElement);
-		this.#rootNode = rootNode;
+		const rootHtmlElement = rootElement.getHtmlElement();
+		containerHtmlElement.appendChild(rootHtmlElement);
+		this.#rootElement = rootElement;
 
-		const sceneManager = SceneManager.getInstance();
-		sceneManager.setRootNode(rootNode);
+		const documentManager = DocumentManager.getInstance();
+		documentManager.setRootElement(rootElement);
 
-		const initialScene = new initialSceneClass();
-		sceneManager.replace(initialScene);
+		const initialDocument = new initialDocumentClass();
+		documentManager.replace(initialDocument);
 	}
 }

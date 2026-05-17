@@ -2,15 +2,15 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Scene, SceneManager, DomLayout, DomNode, Storage } from "../../../libs/dom.js/import.js";
+import { Document, DocumentManager, Layout, Element, Storage } from "../../../libs/document-engine.js/import.js";
 
 
 //==============================================================================
-// 방 목록 씬. (이어하기)
+// 방 목록 도큐먼트. (이어하기)
 // - localStorage 의 `playbook.slot.*` 키를 스캔해 저장된 방 카드 목록을 보여준다.
 // - 각 카드에서 이어하기 / 삭제 가능.
 //==============================================================================
-export class RoomListScene extends Scene {
+export class RoomListDocument extends Document {
 	//==============================================================================
 	// 상수 목록.
 	//==============================================================================
@@ -19,8 +19,8 @@ export class RoomListScene extends Scene {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
-	/** @private @type { DomNode | null } */ #listContainerNode;
-	/** @private @type { DomNode | null } */ #statusNode;
+	/** @private @type { Element | null } */ #listContainerElement;
+	/** @private @type { Element | null } */ #statusElement;
 	/** @private @type { Array<object> } */ #booksCache;
 
 	//==============================================================================
@@ -28,30 +28,30 @@ export class RoomListScene extends Scene {
 	//==============================================================================
 	constructor() {
 		super();
-		this.setName("RoomListScene");
-		this.#listContainerNode = null;
-		this.#statusNode = null;
+		this.setName("RoomListDocument");
+		this.#listContainerElement = null;
+		this.#statusElement = null;
 		this.#booksCache = [];
 	}
 
 	//==============================================================================
-	// 리스트 컨테이너 노드 반환.
+	// 리스트 컨테이너 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getListContainerNode() {
-		return this.#listContainerNode;
+	getListContainerElement() {
+		return this.#listContainerElement;
 	}
 
 	//==============================================================================
-	// 상태 노드 반환.
+	// 상태 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getStatusNode() {
-		return this.#statusNode;
+	getStatusElement() {
+		return this.#statusElement;
 	}
 
 	//==============================================================================
@@ -79,7 +79,7 @@ export class RoomListScene extends Scene {
 	// UI 구성.
 	//==============================================================================
 	buildUI() {
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				position: "absolute",
 				left: "0",
@@ -90,7 +90,7 @@ export class RoomListScene extends Scene {
 				flexDirection: "column"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "0 0 auto",
 						display: "flex",
@@ -102,7 +102,7 @@ export class RoomListScene extends Scene {
 						gap: "12px"
 					})
 					.children(
-						DomLayout.create("button")
+						Layout.create("button")
 							.text("← 뒤로")
 							.style({
 								padding: "6px 12px",
@@ -116,25 +116,25 @@ export class RoomListScene extends Scene {
 							.on("click", () => {
 								this.handleBackClick();
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text("이어하기")
 							.style({
 								fontSize: "16px",
 								fontWeight: "bold",
 								color: "#ffffff"
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text("")
 							.style({
 								marginLeft: "auto",
 								fontSize: "12px",
 								color: "#888888"
 							})
-							.bind((node) => {
-								this.#statusNode = node;
+							.bind((element) => {
+								this.#statusElement = element;
 							})
 					),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "1 1 auto",
 						overflowY: "auto",
@@ -144,8 +144,8 @@ export class RoomListScene extends Scene {
 						gap: "12px",
 						alignContent: "start"
 					})
-					.bind((node) => {
-						this.#listContainerNode = node;
+					.bind((element) => {
+						this.#listContainerElement = element;
 					})
 			)
 			.build(this);
@@ -178,7 +178,7 @@ export class RoomListScene extends Scene {
 	 * @returns { Array<object> }
 	 */
 	loadSlots() {
-		const slotKeys = Storage.getKeys(RoomListScene.SLOT_KEY_PREFIX);
+		const slotKeys = Storage.getKeys(RoomListDocument.SLOT_KEY_PREFIX);
 		const result = [];
 		for (const slotKey of slotKeys) {
 			const data = Storage.getJson(slotKey, null);
@@ -202,11 +202,11 @@ export class RoomListScene extends Scene {
 	// 슬롯 카드 렌더.
 	//==============================================================================
 	renderSlots() {
-		const listContainerNode = this.getListContainerNode();
-		listContainerNode.removeChildren();
+		const listContainerElement = this.getListContainerElement();
+		listContainerElement.removeChildren();
 		const slots = this.loadSlots();
 		if (slots.length === 0) {
-			DomLayout.create("div")
+			Layout.create("div")
 				.text("저장된 방이 없습니다. 타이틀에서 \"새로하기\" 로 시작해 보세요.")
 				.style({
 					fontSize: "14px",
@@ -214,14 +214,14 @@ export class RoomListScene extends Scene {
 					padding: "20px",
 					textAlign: "center"
 				})
-				.build(listContainerNode);
+				.build(listContainerElement);
 			this.setStatusText("");
 			return;
 		}
 		for (const slot of slots) {
-			this.appendSlotCard(slot, listContainerNode);
+			this.appendSlotCard(slot, listContainerElement);
 		}
-		this.appendDeleteAllButton(listContainerNode);
+		this.appendDeleteAllButton(listContainerElement);
 		this.setStatusText(`${slots.length}개`);
 	}
 
@@ -229,10 +229,10 @@ export class RoomListScene extends Scene {
 	// 리스트 하단의 전체삭제 버튼 추가.
 	//==============================================================================
 	/**
-	 * @param { DomNode } parentNode
+	 * @param { Element } parentElement
 	 */
-	appendDeleteAllButton(parentNode) {
-		DomLayout.create("div")
+	appendDeleteAllButton(parentElement) {
+		Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "row",
@@ -240,7 +240,7 @@ export class RoomListScene extends Scene {
 				marginTop: "12px"
 			})
 			.children(
-				DomLayout.create("button")
+				Layout.create("button")
 					.text("전체삭제")
 					.style({
 						padding: "10px 24px",
@@ -256,7 +256,7 @@ export class RoomListScene extends Scene {
 						this.handleDeleteAllClick();
 					})
 			)
-			.build(parentNode);
+			.build(parentElement);
 	}
 
 	//==============================================================================
@@ -268,7 +268,7 @@ export class RoomListScene extends Scene {
 		if (!confirmed) {
 			return;
 		}
-		const slotKeys = Storage.getKeys(RoomListScene.SLOT_KEY_PREFIX);
+		const slotKeys = Storage.getKeys(RoomListDocument.SLOT_KEY_PREFIX);
 		for (const slotKey of slotKeys) {
 			Storage.remove(slotKey);
 		}
@@ -280,9 +280,9 @@ export class RoomListScene extends Scene {
 	//==============================================================================
 	/**
 	 * @param { object } slot
-	 * @param { DomNode } parentNode
+	 * @param { Element } parentElement
 	 */
-	appendSlotCard(slot, parentNode) {
+	appendSlotCard(slot, parentElement) {
 		const bookTitle = slot.bookTitle ?? "(제목 없음)";
 		const createdAtText = this.formatTimestamp(slot.createdAt);
 		const lastPlayedAtText = this.formatTimestamp(slot.lastPlayedAt);
@@ -290,7 +290,7 @@ export class RoomListScene extends Scene {
 		const slotId = slot.slotId;
 		const turnCount = this.computeTurnCount(slot);
 
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "column",
@@ -301,26 +301,26 @@ export class RoomListScene extends Scene {
 				borderRadius: "8px"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(bookTitle)
 					.style({
 						fontSize: "16px",
 						fontWeight: "bold",
 						color: "#ffffff"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(`시작 ${createdAtText} · 최근 ${lastPlayedAtText}`)
 					.style({
 						fontSize: "12px",
 						color: "#888888"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(`현재 화: ${currentEpisodeId} · ${turnCount}턴 진행`)
 					.style({
 						fontSize: "12px",
 						color: "#aaaaaa"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						display: "flex",
 						flexDirection: "row",
@@ -328,7 +328,7 @@ export class RoomListScene extends Scene {
 						marginTop: "8px"
 					})
 					.children(
-						DomLayout.create("button")
+						Layout.create("button")
 							.text("이어하기")
 							.style({
 								flex: "1",
@@ -344,7 +344,7 @@ export class RoomListScene extends Scene {
 							.on("click", () => {
 								this.handleContinueClick(slot);
 							}),
-						DomLayout.create("button")
+						Layout.create("button")
 							.text("삭제")
 							.style({
 								padding: "8px 16px",
@@ -360,7 +360,7 @@ export class RoomListScene extends Scene {
 							})
 					)
 			)
-			.build(parentNode);
+			.build(parentElement);
 	}
 
 	//==============================================================================
@@ -432,8 +432,8 @@ export class RoomListScene extends Scene {
 	 * @param { string } text
 	 */
 	setStatusText(text) {
-		const statusNode = this.getStatusNode();
-		statusNode.setText(text);
+		const statusElement = this.getStatusElement();
+		statusElement.setText(text);
 	}
 
 	//==============================================================================
@@ -448,9 +448,9 @@ export class RoomListScene extends Scene {
 			System.alert(`이 방의 책 "${slot.bookId}" 을 찾을 수 없습니다. 책이 변경되었거나 제거되었을 수 있습니다.`);
 			return;
 		}
-		const { PlayScene } = await import("./playscene.js");
-		const playScene = new PlayScene({ book: book, slotId: slot.slotId });
-		SceneManager.getInstance().replace(playScene);
+		const { PlayDocument } = await import("./playdocument.js");
+		const playDocument = new PlayDocument({ book: book, slotId: slot.slotId });
+		DocumentManager.getInstance().replace(playDocument, { transition: "scale-in" });
 	}
 
 	//==============================================================================
@@ -465,7 +465,7 @@ export class RoomListScene extends Scene {
 		if (!confirmed) {
 			return;
 		}
-		const storageKey = `${RoomListScene.SLOT_KEY_PREFIX}${slot.slotId}`;
+		const storageKey = `${RoomListDocument.SLOT_KEY_PREFIX}${slot.slotId}`;
 		Storage.remove(storageKey);
 		this.renderSlots();
 	}
@@ -474,8 +474,8 @@ export class RoomListScene extends Scene {
 	// 뒤로가기 처리.
 	//==============================================================================
 	async handleBackClick() {
-		const { TitleScene } = await import("./titlescene.js");
-		const titleScene = new TitleScene();
-		SceneManager.getInstance().replace(titleScene);
+		const { TitleDocument } = await import("./titledocument.js");
+		const titleDocument = new TitleDocument();
+		DocumentManager.getInstance().replace(titleDocument, { transition: "slide-right" });
 	}
 }

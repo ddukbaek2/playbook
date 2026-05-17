@@ -6,16 +6,17 @@ import { Object } from "./object.js";
 
 
 //==============================================================================
-// DOM 계층 노드.
-// - HTMLElement 를 1:1 로 소유하며 부모/자식 관계를 노드와 DOM 양쪽에서 동기화한다.
+// HTML 요소 래퍼.
+// - HTMLElement 를 1:1 로 소유하며 부모/자식 관계를 Element 트리와 DOM 양쪽에서 동기화한다.
+// - 화면 단위인 Document 도 본 클래스를 상속한다.
 //==============================================================================
-export class DomNode extends Object {
+export class Element extends Object {
 	//==============================================================================
 	// 멤버 변수 목록.
 	//==============================================================================
-	/** @private @type { HTMLElement } */ #element;
-	/** @private @type { DomNode | null } */ #parent;
-	/** @private @type { DomNode[] } */ #children;
+	/** @private @type { HTMLElement } */ #htmlElement;
+	/** @private @type { Element | null } */ #parent;
+	/** @private @type { Element[] } */ #children;
 	/** @private @type { string } */ #name;
 	/** @private @type { boolean } */ #isActive;
 	/** @private @type { Map<string, Function[]> } */ #eventListeners;
@@ -28,7 +29,7 @@ export class DomNode extends Object {
 	 */
 	constructor(tagName = "div") {
 		super();
-		this.#element = System.document.createElement(tagName);
+		this.#htmlElement = System.document.createElement(tagName);
 		this.#parent = null;
 		this.#children = [];
 		this.#name = "";
@@ -42,15 +43,15 @@ export class DomNode extends Object {
 	/**
 	 * @returns { HTMLElement }
 	 */
-	getElement() {
-		return this.#element;
+	getHtmlElement() {
+		return this.#htmlElement;
 	}
 
 	//==============================================================================
 	// 부모 설정.
 	//==============================================================================
 	/**
-	 * @param { DomNode | null } parent
+	 * @param { Element | null } parent
 	 */
 	setParent(parent) {
 		if (this === parent) {
@@ -67,10 +68,10 @@ export class DomNode extends Object {
 			if (childIndex !== -1) {
 				currentParentChildren.splice(childIndex, 1);
 			}
-			const currentElement = this.getElement();
-			const currentParentElement = currentParent.getElement();
-			if (currentElement.parentElement === currentParentElement) {
-				currentParentElement.removeChild(currentElement);
+			const currentHtmlElement = this.getHtmlElement();
+			const currentParentHtmlElement = currentParent.getHtmlElement();
+			if (currentHtmlElement.parentElement === currentParentHtmlElement) {
+				currentParentHtmlElement.removeChild(currentHtmlElement);
 			}
 			this.#parent = null;
 		}
@@ -79,9 +80,9 @@ export class DomNode extends Object {
 			this.#parent = parent;
 			const newParentChildren = parent.getChildren();
 			newParentChildren.push(this);
-			const element = this.getElement();
-			const newParentElement = parent.getElement();
-			newParentElement.appendChild(element);
+			const htmlElement = this.getHtmlElement();
+			const newParentHtmlElement = parent.getHtmlElement();
+			newParentHtmlElement.appendChild(htmlElement);
 		}
 	}
 
@@ -89,7 +90,7 @@ export class DomNode extends Object {
 	// 부모 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
 	getParent() {
 		return this.#parent;
@@ -99,7 +100,7 @@ export class DomNode extends Object {
 	// 자식 추가.
 	//==============================================================================
 	/**
-	 * @param { DomNode } child
+	 * @param { Element } child
 	 */
 	addChild(child) {
 		child.setParent(this);
@@ -109,7 +110,7 @@ export class DomNode extends Object {
 	// 자식 제거.
 	//==============================================================================
 	/**
-	 * @param { DomNode } child
+	 * @param { Element } child
 	 */
 	removeChild(child) {
 		const hasChild = this.hasChild(child);
@@ -133,7 +134,7 @@ export class DomNode extends Object {
 	// 자식 목록 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode[] }
+	 * @returns { Element[] }
 	 */
 	getChildren() {
 		return this.#children;
@@ -143,7 +144,7 @@ export class DomNode extends Object {
 	// 자식 포함 여부 반환.
 	//==============================================================================
 	/**
-	 * @param { DomNode } child
+	 * @param { Element } child
 	 * @returns { boolean }
 	 */
 	hasChild(child) {
@@ -181,12 +182,12 @@ export class DomNode extends Object {
 	 */
 	setActive(active) {
 		this.#isActive = active;
-		const element = this.getElement();
+		const htmlElement = this.getHtmlElement();
 		if (active) {
-			element.style.display = "";
+			htmlElement.style.display = "";
 		}
 		else {
-			element.style.display = "none";
+			htmlElement.style.display = "none";
 		}
 	}
 
@@ -207,8 +208,8 @@ export class DomNode extends Object {
 	 * @param { string } text
 	 */
 	setText(text) {
-		const element = this.getElement();
-		element.textContent = text;
+		const htmlElement = this.getHtmlElement();
+		htmlElement.textContent = text;
 	}
 
 	//==============================================================================
@@ -218,11 +219,11 @@ export class DomNode extends Object {
 	 * @param { object } styleObject
 	 */
 	setStyle(styleObject) {
-		const element = this.getElement();
+		const htmlElement = this.getHtmlElement();
 		const keys = System.Object.keys(styleObject);
 		for (const key of keys) {
 			const value = styleObject[key];
-			element.style[key] = value;
+			htmlElement.style[key] = value;
 		}
 	}
 
@@ -233,8 +234,8 @@ export class DomNode extends Object {
 	 * @param { string } className
 	 */
 	addClass(className) {
-		const element = this.getElement();
-		element.classList.add(className);
+		const htmlElement = this.getHtmlElement();
+		htmlElement.classList.add(className);
 	}
 
 	//==============================================================================
@@ -244,8 +245,8 @@ export class DomNode extends Object {
 	 * @param { string } className
 	 */
 	removeClass(className) {
-		const element = this.getElement();
-		element.classList.remove(className);
+		const htmlElement = this.getHtmlElement();
+		htmlElement.classList.remove(className);
 	}
 
 	//==============================================================================
@@ -256,8 +257,8 @@ export class DomNode extends Object {
 	 * @param { string } value
 	 */
 	setAttribute(key, value) {
-		const element = this.getElement();
-		element.setAttribute(key, value);
+		const htmlElement = this.getHtmlElement();
+		htmlElement.setAttribute(key, value);
 	}
 
 	//==============================================================================
@@ -268,8 +269,8 @@ export class DomNode extends Object {
 	 * @param { Function } callback
 	 */
 	on(eventName, callback) {
-		const element = this.getElement();
-		element.addEventListener(eventName, callback);
+		const htmlElement = this.getHtmlElement();
+		htmlElement.addEventListener(eventName, callback);
 		const eventListeners = this.#eventListeners;
 		if (!eventListeners.has(eventName)) {
 			eventListeners.set(eventName, []);
@@ -286,8 +287,8 @@ export class DomNode extends Object {
 	 * @param { Function } callback
 	 */
 	off(eventName, callback) {
-		const element = this.getElement();
-		element.removeEventListener(eventName, callback);
+		const htmlElement = this.getHtmlElement();
+		htmlElement.removeEventListener(eventName, callback);
 		const eventListeners = this.#eventListeners;
 		if (eventListeners.has(eventName)) {
 			const callbackList = eventListeners.get(eventName);
@@ -305,8 +306,8 @@ export class DomNode extends Object {
 	 * @returns { string }
 	 */
 	getValue() {
-		const element = this.getElement();
-		return element.value ?? "";
+		const htmlElement = this.getHtmlElement();
+		return htmlElement.value ?? "";
 	}
 
 	//==============================================================================
@@ -316,8 +317,8 @@ export class DomNode extends Object {
 	 * @param { string } value
 	 */
 	setValue(value) {
-		const element = this.getElement();
-		element.value = value;
+		const htmlElement = this.getHtmlElement();
+		htmlElement.value = value;
 	}
 
 	//==============================================================================
@@ -335,10 +336,10 @@ export class DomNode extends Object {
 		this.removeChildren();
 
 		const eventListeners = this.#eventListeners;
-		const element = this.getElement();
+		const htmlElement = this.getHtmlElement();
 		for (const [eventName, callbackList] of eventListeners) {
 			for (const callback of callbackList) {
-				element.removeEventListener(eventName, callback);
+				htmlElement.removeEventListener(eventName, callback);
 			}
 		}
 		eventListeners.clear();

@@ -2,14 +2,14 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Scene, SceneManager, DomLayout } from "../../../libs/dom.js/import.js";
+import { Document, DocumentManager, Layout } from "../../../libs/document-engine.js/import.js";
 import { Secrets } from "../secrets.js";
 
 
 //==============================================================================
-// 시작 씬.
+// 시작 도큐먼트.
 //==============================================================================
-export class TitleScene extends Scene {
+export class TitleDocument extends Document {
 	//==============================================================================
 	// 생성.
 	//==============================================================================
@@ -18,7 +18,7 @@ export class TitleScene extends Scene {
 	 */
 	constructor() {
 		super();
-		this.setName("TitleScene");
+		this.setName("TitleDocument");
 	}
 
 	//==============================================================================
@@ -28,7 +28,7 @@ export class TitleScene extends Scene {
 	 * @override
 	 */
 	onEnter() {
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				position: "absolute",
 				left: "50%",
@@ -41,7 +41,7 @@ export class TitleScene extends Scene {
 				minWidth: "320px"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text("Playbook")
 					.style({
 						fontSize: "40px",
@@ -49,14 +49,14 @@ export class TitleScene extends Scene {
 						color: "#ffffff",
 						marginBottom: "8px"
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.text("AI 기반 스토리 플레이")
 					.style({
 						fontSize: "14px",
 						color: "#888888",
 						marginBottom: "16px"
 					}),
-				DomLayout.create("button")
+				Layout.create("button")
 					.text("새로하기")
 					.style({
 						width: "100%",
@@ -72,7 +72,7 @@ export class TitleScene extends Scene {
 					.on("click", () => {
 						this.handleNewClick();
 					}),
-				DomLayout.create("button")
+				Layout.create("button")
 					.text("이어하기")
 					.style({
 						width: "100%",
@@ -117,9 +117,9 @@ export class TitleScene extends Scene {
 		if (!ok) {
 			return;
 		}
-		const { SelectScene } = await import("./selectscene.js");
-		const selectScene = new SelectScene();
-		SceneManager.getInstance().replace(selectScene);
+		const { SelectDocument } = await import("./selectdocument.js");
+		const selectDocument = new SelectDocument();
+		DocumentManager.getInstance().replace(selectDocument, { transition: "slide-left" });
 	}
 
 	//==============================================================================
@@ -130,8 +130,8 @@ export class TitleScene extends Scene {
 		if (!ok) {
 			return;
 		}
-		const { RoomListScene } = await import("./roomlistscene.js");
-		const roomListScene = new RoomListScene();
-		SceneManager.getInstance().replace(roomListScene);
+		const { RoomListDocument } = await import("./roomlistdocument.js");
+		const roomListDocument = new RoomListDocument();
+		DocumentManager.getInstance().replace(roomListDocument, { transition: "slide-left" });
 	}
 }

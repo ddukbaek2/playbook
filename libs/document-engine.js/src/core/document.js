@@ -2,15 +2,15 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { DomNode } from "./domnode.js";
+import { Element } from "./element.js";
 
 
 //==============================================================================
-// 화면 단위 씬.
-// - SceneManager 에 의해 한 번에 하나만 활성화된다.
+// 화면 단위 도큐먼트.
+// - DocumentManager 에 의해 한 번에 하나만 활성화된다.
 // - onEnter / onExit 라이프사이클을 오버라이드해서 UI 를 구성/해제한다.
 //==============================================================================
-export class Scene extends DomNode {
+export class Document extends Element {
 	//==============================================================================
 	// 생성.
 	//==============================================================================
@@ -19,7 +19,7 @@ export class Scene extends DomNode {
 	 */
 	constructor() {
 		super("div");
-		this.setName("Scene");
+		this.setName("Document");
 		this.setStyle({
 			position: "absolute",
 			left: "0",

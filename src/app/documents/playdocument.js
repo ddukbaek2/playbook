@@ -2,19 +2,21 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Scene, SceneManager, DomLayout, DomNode, Storage } from "../../../libs/dom.js/import.js";
+import { Document, DocumentManager, Layout, Element, Storage } from "../../../libs/document-engine.js/import.js";
 import { GeminiClient, PlaybookSession, Persona, Character } from "../../../libs/playbook-engine.js/import.js";
 import { Secrets } from "../secrets.js";
 
 
 //==============================================================================
-// 플레이 씬.
+// 플레이 도큐먼트.
 // - PlaybookSession 인스턴스 위에 UI 레이어만 얹는다.
 // - 매 턴: 사용자 입력 -> session.act(input) -> 응답을 화면에 표시.
 //==============================================================================
-export class PlayScene extends Scene {
+export class PlayDocument extends Document {
 	//==============================================================================
 	// 입력 모드 상수.
+	// - 신규 사용자 입력은 항상 "mixed" 로 전송된다.
+	// - 다른 값(dialogue/description/auto) 은 과거 저장 세션 복원 시의 컬러 분기 호환용으로만 남겨 둔다.
 	//==============================================================================
 	/** @type { string } */ static INPUT_MODE_DIALOGUE = "dialogue";
 	/** @type { string } */ static INPUT_MODE_MIXED = "mixed";
@@ -25,21 +27,18 @@ export class PlayScene extends Scene {
 	//==============================================================================
 	/** @private @type { object } */ #book;
 	/** @private @type { PlaybookSession | null } */ #session;
-	/** @private @type { string } */ #inputMode;
 	/** @private @type { boolean } */ #isCharacterListPanelOpen;
 
-	/** @private @type { DomNode | null } */ #titleNode;
-	/** @private @type { DomNode | null } */ #messageListNode;
-	/** @private @type { DomNode | null } */ #userInputNode;
-	/** @private @type { DomNode | null } */ #sendButtonNode;
-	/** @private @type { DomNode | null } */ #clearButtonNode;
-	/** @private @type { DomNode | null } */ #statusNode;
-	/** @private @type { DomNode | null } */ #menuButtonNode;
-	/** @private @type { DomNode | null } */ #characterListPanelNode;
-	/** @private @type { DomNode | null } */ #characterListBackdropNode;
-	/** @private @type { DomNode | null } */ #dialogueModeButtonNode;
-	/** @private @type { DomNode | null } */ #mixedModeButtonNode;
-	/** @private @type { DomNode | null } */ #descriptionModeButtonNode;
+	/** @private @type { Element | null } */ #titleElement;
+	/** @private @type { Element | null } */ #messageListElement;
+	/** @private @type { Element | null } */ #userInputElement;
+	/** @private @type { Element | null } */ #sendButtonElement;
+	/** @private @type { Element | null } */ #autoAdvanceButtonElement;
+	/** @private @type { Element | null } */ #clearButtonElement;
+	/** @private @type { Element | null } */ #statusElement;
+	/** @private @type { Element | null } */ #menuButtonElement;
+	/** @private @type { Element | null } */ #characterListPanelElement;
+	/** @private @type { Element | null } */ #characterListBackdropElement;
 	/** @private @type { string } */ #slotId;
 
 	//==============================================================================
@@ -52,25 +51,22 @@ export class PlayScene extends Scene {
 	 */
 	constructor(options) {
 		super();
-		this.setName("PlayScene");
+		this.setName("PlayDocument");
 		this.#book = options.book;
 		this.#slotId = options.slotId;
 		this.#session = null;
-		this.#inputMode = PlayScene.INPUT_MODE_MIXED;
 		this.#isCharacterListPanelOpen = false;
 
-		this.#titleNode = null;
-		this.#messageListNode = null;
-		this.#userInputNode = null;
-		this.#sendButtonNode = null;
-		this.#clearButtonNode = null;
-		this.#statusNode = null;
-		this.#menuButtonNode = null;
-		this.#characterListPanelNode = null;
-		this.#characterListBackdropNode = null;
-		this.#dialogueModeButtonNode = null;
-		this.#mixedModeButtonNode = null;
-		this.#descriptionModeButtonNode = null;
+		this.#titleElement = null;
+		this.#messageListElement = null;
+		this.#userInputElement = null;
+		this.#sendButtonElement = null;
+		this.#autoAdvanceButtonElement = null;
+		this.#clearButtonElement = null;
+		this.#statusElement = null;
+		this.#menuButtonElement = null;
+		this.#characterListPanelElement = null;
+		this.#characterListBackdropElement = null;
 	}
 
 	//==============================================================================
@@ -104,113 +100,83 @@ export class PlayScene extends Scene {
 	}
 
 	//==============================================================================
-	// 메시지 목록 노드 반환.
+	// 메시지 목록 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getMessageListNode() {
-		return this.#messageListNode;
+	getMessageListElement() {
+		return this.#messageListElement;
 	}
 
 	//==============================================================================
-	// 사용자 입력 노드 반환.
+	// 사용자 입력 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getUserInputNode() {
-		return this.#userInputNode;
+	getUserInputElement() {
+		return this.#userInputElement;
 	}
 
 	//==============================================================================
-	// 전송 버튼 노드 반환.
+	// 전송 버튼 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getSendButtonNode() {
-		return this.#sendButtonNode;
+	getSendButtonElement() {
+		return this.#sendButtonElement;
 	}
 
 	//==============================================================================
-	// 상태 표시 노드 반환.
+	// 자동진행 버튼 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getStatusNode() {
-		return this.#statusNode;
+	getAutoAdvanceButtonElement() {
+		return this.#autoAdvanceButtonElement;
 	}
 
 	//==============================================================================
-	// 비우기 버튼 노드 반환.
+	// 상태 표시 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getClearButtonNode() {
-		return this.#clearButtonNode;
+	getStatusElement() {
+		return this.#statusElement;
 	}
 
 	//==============================================================================
-	// 메뉴 버튼 노드 반환.
+	// 비우기 버튼 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getMenuButtonNode() {
-		return this.#menuButtonNode;
+	getClearButtonElement() {
+		return this.#clearButtonElement;
 	}
 
 	//==============================================================================
-	// 등장인물 목록 패널 노드 반환.
+	// 메뉴 버튼 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getCharacterListPanelNode() {
-		return this.#characterListPanelNode;
+	getMenuButtonElement() {
+		return this.#menuButtonElement;
 	}
 
 	//==============================================================================
-	// 대사 모드 버튼 노드 반환.
+	// 등장인물 목록 패널 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getDialogueModeButtonNode() {
-		return this.#dialogueModeButtonNode;
-	}
-
-	//==============================================================================
-	// 혼합 모드 버튼 노드 반환.
-	//==============================================================================
-	/**
-	 * @returns { DomNode | null }
-	 */
-	getMixedModeButtonNode() {
-		return this.#mixedModeButtonNode;
-	}
-
-	//==============================================================================
-	// 상황 모드 버튼 노드 반환.
-	//==============================================================================
-	/**
-	 * @returns { DomNode | null }
-	 */
-	getDescriptionModeButtonNode() {
-		return this.#descriptionModeButtonNode;
-	}
-
-	//==============================================================================
-	// 현재 입력 모드 반환.
-	//==============================================================================
-	/**
-	 * @returns { string }
-	 */
-	getInputMode() {
-		return this.#inputMode;
+	getCharacterListPanelElement() {
+		return this.#characterListPanelElement;
 	}
 
 	//==============================================================================
@@ -286,7 +252,6 @@ export class PlayScene extends Scene {
 		this.registerBookNpcs();
 
 		this.buildUI();
-		this.refreshInputModeStyles();
 		this.refreshSendButton();
 		const savedMessageHistory = savedState.messageHistory;
 		const hasSavedHistory = (savedMessageHistory !== null) && (savedMessageHistory.length > 0);
@@ -363,7 +328,7 @@ export class PlayScene extends Scene {
 		const book = this.getBook();
 		const bookTitle = book.title ?? "상황극";
 
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				position: "absolute",
 				left: "0",
@@ -374,7 +339,7 @@ export class PlayScene extends Scene {
 				flexDirection: "column"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "0 0 auto",
 						position: "relative",
@@ -387,7 +352,7 @@ export class PlayScene extends Scene {
 						gap: "12px"
 					})
 					.children(
-						DomLayout.create("button")
+						Layout.create("button")
 							.text("← 목록")
 							.style({
 								padding: "6px 12px",
@@ -401,27 +366,45 @@ export class PlayScene extends Scene {
 							.on("click", () => {
 								this.handleBackClick();
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text(bookTitle)
 							.style({
 								fontSize: "14px",
 								fontWeight: "bold",
 								color: "#ffffff"
 							})
-							.bind((node) => {
-								this.#titleNode = node;
+							.bind((element) => {
+								this.#titleElement = element;
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.text("")
 							.style({
 								marginLeft: "auto",
 								fontSize: "12px",
 								color: "#888888"
 							})
-							.bind((node) => {
-								this.#statusNode = node;
+							.bind((element) => {
+								this.#statusElement = element;
 							}),
-						DomLayout.create("button")
+						Layout.create("button")
+							.text("자동진행")
+							.style({
+								padding: "6px 12px",
+								fontSize: "13px",
+								fontWeight: "bold",
+								color: "#ffffff",
+								backgroundColor: "#6a3a8c",
+								border: "none",
+								borderRadius: "4px",
+								cursor: "pointer"
+							})
+							.on("click", () => {
+								this.handleAutoAdvanceClick();
+							})
+							.bind((element) => {
+								this.#autoAdvanceButtonElement = element;
+							}),
+						Layout.create("button")
 							.text("≡ 메뉴")
 							.style({
 								position: "relative",
@@ -437,10 +420,10 @@ export class PlayScene extends Scene {
 							.on("click", () => {
 								this.toggleCharacterListPanel();
 							})
-							.bind((node) => {
-								this.#menuButtonNode = node;
+							.bind((element) => {
+								this.#menuButtonElement = element;
 							}),
-						DomLayout.create("div")
+						Layout.create("div")
 							.style({
 								position: "absolute",
 								top: "100%",
@@ -459,11 +442,11 @@ export class PlayScene extends Scene {
 								gap: "10px",
 								zIndex: "10"
 							})
-							.bind((node) => {
-								this.#characterListPanelNode = node;
+							.bind((element) => {
+								this.#characterListPanelElement = element;
 							})
 					),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						position: "absolute",
 						left: "0",
@@ -477,10 +460,10 @@ export class PlayScene extends Scene {
 					.on("click", () => {
 						this.toggleCharacterListPanel();
 					})
-					.bind((node) => {
-						this.#characterListBackdropNode = node;
+					.bind((element) => {
+						this.#characterListBackdropElement = element;
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "1 1 auto",
 						overflowY: "auto",
@@ -489,10 +472,10 @@ export class PlayScene extends Scene {
 						flexDirection: "column",
 						gap: "12px"
 					})
-					.bind((node) => {
-						this.#messageListNode = node;
+					.bind((element) => {
+						this.#messageListElement = element;
 					}),
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						flex: "0 0 auto",
 						display: "flex",
@@ -503,71 +486,33 @@ export class PlayScene extends Scene {
 						backgroundColor: "#252526"
 					})
 					.children(
-						DomLayout.create("div")
+						Layout.create("div")
 							.style({
 								display: "flex",
 								flexDirection: "row",
 								gap: "4px"
 							})
 							.children(
-								DomLayout.create("button")
-									.text("대사")
+								Layout.create("button")
+									.text("( )")
 									.style({
-										flex: "1",
+										flex: "0 0 60px",
 										height: "32px",
 										padding: "0 10px",
-										fontSize: "12px",
-										fontWeight: "bold",
-										border: "1px solid #555555",
+										fontSize: "13px",
+										color: "#cccccc",
+										backgroundColor: "#3c3c3c",
+										border: "none",
 										borderRadius: "4px",
 										cursor: "pointer"
 									})
 									.on("click", () => {
-										this.setInputMode(PlayScene.INPUT_MODE_DIALOGUE);
-									})
-									.bind((node) => {
-										this.#dialogueModeButtonNode = node;
+										this.handleParenthesesClick();
 									}),
-								DomLayout.create("button")
-									.text("혼합")
-									.style({
-										flex: "1",
-										height: "32px",
-										padding: "0 10px",
-										fontSize: "12px",
-										fontWeight: "bold",
-										border: "1px solid #555555",
-										borderRadius: "4px",
-										cursor: "pointer"
-									})
-									.on("click", () => {
-										this.setInputMode(PlayScene.INPUT_MODE_MIXED);
-									})
-									.bind((node) => {
-										this.#mixedModeButtonNode = node;
-									}),
-								DomLayout.create("button")
-									.text("상황")
-									.style({
-										flex: "1",
-										height: "32px",
-										padding: "0 10px",
-										fontSize: "12px",
-										fontWeight: "bold",
-										border: "1px solid #555555",
-										borderRadius: "4px",
-										cursor: "pointer"
-									})
-									.on("click", () => {
-										this.setInputMode(PlayScene.INPUT_MODE_DESCRIPTION);
-									})
-									.bind((node) => {
-										this.#descriptionModeButtonNode = node;
-									}),
-								DomLayout.create("button")
+								Layout.create("button")
 									.text("비우기")
 									.style({
-										flex: "1",
+										flex: "0 0 60px",
 										height: "32px",
 										padding: "0 10px",
 										fontSize: "13px",
@@ -580,11 +525,11 @@ export class PlayScene extends Scene {
 									.on("click", () => {
 										this.handleClearClick();
 									})
-									.bind((node) => {
-										this.#clearButtonNode = node;
+									.bind((element) => {
+										this.#clearButtonElement = element;
 									})
 							),
-						DomLayout.create("div")
+						Layout.create("div")
 							.style({
 								display: "flex",
 								flexDirection: "row",
@@ -592,7 +537,7 @@ export class PlayScene extends Scene {
 								gap: "8px"
 							})
 							.children(
-								DomLayout.create("textarea")
+								Layout.create("textarea")
 									.attr("rows", "2")
 									.style({
 										flex: "1",
@@ -602,7 +547,7 @@ export class PlayScene extends Scene {
 										fontSize: "14px",
 										lineHeight: "1.5",
 										color: "#ffffff",
-										backgroundColor: "#3c3c3c",
+										backgroundColor: "#2c4c4c",
 										border: "1px solid #555555",
 										borderRadius: "4px",
 										outline: "none",
@@ -610,24 +555,25 @@ export class PlayScene extends Scene {
 										fontFamily: "inherit",
 										boxSizing: "border-box"
 									})
+									.attr("placeholder", "대사 (괄호 안에 상황/설명) 형식으로 입력하세요")
 									.on("keydown", (event) => {
 										this.handleInputKeydown(event);
 									})
 									.on("input", () => {
 										this.refreshSendButton();
 									})
-									.bind((node) => {
-										this.#userInputNode = node;
+									.bind((element) => {
+										this.#userInputElement = element;
 									}),
-								DomLayout.create("button")
-									.text("자동진행")
+								Layout.create("button")
+									.text("진행")
 									.style({
 										minWidth: "80px",
 										padding: "0 20px",
 										fontSize: "14px",
 										fontWeight: "bold",
 										color: "#ffffff",
-										backgroundColor: "#6a3a8c",
+										backgroundColor: "#0e639c",
 										border: "none",
 										borderRadius: "4px",
 										cursor: "pointer"
@@ -635,8 +581,8 @@ export class PlayScene extends Scene {
 									.on("click", () => {
 										this.handleSendClick();
 									})
-									.bind((node) => {
-										this.#sendButtonNode = node;
+									.bind((element) => {
+										this.#sendButtonElement = element;
 									})
 							)
 					)
@@ -724,32 +670,38 @@ export class PlayScene extends Scene {
 	}
 
 	//==============================================================================
-	// 전송 처리.
+	// 전송 처리. (입력창 내용 → 혼합 모드로 전송)
+	// - 입력창이 비어 있으면 아무 동작 없음 (자동진행은 별도 버튼).
 	//==============================================================================
 	async handleSendClick() {
 		const session = this.getSession();
 		if (session.isWaitingResponse()) {
 			return;
 		}
-		const userInputNode = this.getUserInputNode();
-		const inputValue = userInputNode.getValue().trim();
-		const isAutoAdvance = (inputValue === "");
-		const currentMode = this.getInputMode();
-		let submittedText = "";
-		let submittedMode = currentMode;
-		if (isAutoAdvance) {
-			submittedText = "(자동 진행)";
-			submittedMode = "auto";
+		const userInputElement = this.getUserInputElement();
+		const inputValue = userInputElement.getValue().trim();
+		if (inputValue === "") {
+			return;
 		}
-		else if (currentMode === PlayScene.INPUT_MODE_DIALOGUE) {
-			submittedText = `"${inputValue}"`;
-		}
-		else {
-			submittedText = inputValue;
-		}
+		const submittedText = inputValue;
+		const submittedMode = PlayDocument.INPUT_MODE_MIXED;
 
-		userInputNode.setValue("");
+		userInputElement.setValue("");
 		this.refreshSendButton();
+		this.appendMessage("user", submittedText, submittedMode);
+		await this.requestAIResponse(submittedText, submittedMode);
+	}
+
+	//==============================================================================
+	// 자동진행 처리. (입력창과 무관하게 "(자동 진행)" 을 보낸다)
+	//==============================================================================
+	async handleAutoAdvanceClick() {
+		const session = this.getSession();
+		if (session.isWaitingResponse()) {
+			return;
+		}
+		const submittedText = "(자동 진행)";
+		const submittedMode = "auto";
 		this.appendMessage("user", submittedText, submittedMode);
 		await this.requestAIResponse(submittedText, submittedMode);
 	}
@@ -758,9 +710,9 @@ export class PlayScene extends Scene {
 	// 뒤로가기 처리.
 	//==============================================================================
 	async handleBackClick() {
-		const { TitleScene } = await import("./titlescene.js");
-		const titleScene = new TitleScene();
-		SceneManager.getInstance().replace(titleScene);
+		const { TitleDocument } = await import("./titledocument.js");
+		const titleDocument = new TitleDocument();
+		DocumentManager.getInstance().replace(titleDocument, { transition: "slide-right" });
 	}
 
 	//==============================================================================
@@ -771,16 +723,17 @@ export class PlayScene extends Scene {
 	 */
 	async requestAIResponse(userInput, mode) {
 		this.setSendButtonEnabled(false);
+		this.setAutoAdvanceButtonEnabled(false);
 		this.setUserInputEnabled(false);
 
-		const thinkingNode = this.appendSpinnerMessage();
+		const thinkingElement = this.appendSpinnerMessage();
 
 		const session = this.getSession();
 		try {
 			const actOptions = (mode !== undefined && mode !== null) ? { mode: mode } : undefined;
 			const result = await session.act(userInput, actOptions);
 			const responseText = result.text;
-			this.removeMessageNode(thinkingNode);
+			this.removeMessageElement(thinkingElement);
 			this.appendMessage("model", responseText);
 			if (result.transitioned) {
 				const nextEpisodeId = result.nextEpisodeId;
@@ -792,15 +745,16 @@ export class PlayScene extends Scene {
 			}
 		}
 		catch (error) {
-			this.removeMessageNode(thinkingNode);
+			this.removeMessageElement(thinkingElement);
 			const errorText = error && error.message ? error.message : System.String(error);
 			this.appendMessage("system", `오류: ${errorText}`);
 		}
 		finally {
-			this.setSendButtonEnabled(true);
 			this.setUserInputEnabled(true);
+			this.setAutoAdvanceButtonEnabled(true);
 			this.saveSessionHistory();
 			this.refreshTurnCountStatus();
+			this.refreshSendButton();
 		}
 	}
 
@@ -811,23 +765,23 @@ export class PlayScene extends Scene {
 	/**
 	 * @param { string } role
 	 * @param { string } text
-	 * @returns { DomNode }
+	 * @returns { Element }
 	 */
 	appendMessage(role, text, mode) {
-		const messageListNode = this.getMessageListNode();
+		const messageListElement = this.getMessageListElement();
 
 		let backgroundColor = "#2d2d30";
 		if (role === "user") {
 			if (mode === "auto") {
 				backgroundColor = "#3a3a44";
 			}
-			else if (mode === PlayScene.INPUT_MODE_DIALOGUE) {
+			else if (mode === PlayDocument.INPUT_MODE_DIALOGUE) {
 				backgroundColor = "#1c4a6c";
 			}
-			else if (mode === PlayScene.INPUT_MODE_MIXED) {
+			else if (mode === PlayDocument.INPUT_MODE_MIXED) {
 				backgroundColor = "#1e5c5c";
 			}
-			else if (mode === PlayScene.INPUT_MODE_DESCRIPTION) {
+			else if (mode === PlayDocument.INPUT_MODE_DESCRIPTION) {
 				backgroundColor = "#6c2a44";
 			}
 			else {
@@ -854,7 +808,7 @@ export class PlayScene extends Scene {
 			backgroundColor = "#33333a";
 		}
 
-		const messageNode = DomLayout.create("div")
+		const messageElement = Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "column",
@@ -869,27 +823,27 @@ export class PlayScene extends Scene {
 				wordBreak: "break-word"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(text)
 			)
-			.build(messageListNode);
+			.build(messageListElement);
 
 		this.scrollMessageListToBottom();
-		return messageNode;
+		return messageElement;
 	}
 
 	//==============================================================================
 	// 응답 대기용 스피너 메시지 추가.
-	// - 초당 1회전 회전 인디케이터를 담은 모델 톤의 박스를 추가하고 노드를 반환한다.
-	// - Web Animations API 로 회전. 노드 제거 시 애니메이션도 함께 정리된다.
+	// - 초당 1회전 회전 인디케이터를 담은 모델 톤의 박스를 추가하고 Element 를 반환한다.
+	// - Web Animations API 로 회전. Element 제거 시 애니메이션도 함께 정리된다.
 	//==============================================================================
 	/**
-	 * @returns { DomNode }
+	 * @returns { Element }
 	 */
 	appendSpinnerMessage() {
-		const messageListNode = this.getMessageListNode();
+		const messageListElement = this.getMessageListElement();
 
-		const messageNode = DomLayout.create("div")
+		const messageElement = Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "row",
@@ -903,7 +857,7 @@ export class PlayScene extends Scene {
 				lineHeight: "1.6"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.style({
 						width: "16px",
 						height: "16px",
@@ -912,8 +866,8 @@ export class PlayScene extends Scene {
 						borderRadius: "50%",
 						boxSizing: "border-box"
 					})
-					.bind((spinnerNode) => {
-						const spinnerElement = spinnerNode.getElement();
+					.bind((spinnerElement) => {
+						const spinnerHtmlElement = spinnerElement.getHtmlElement();
 						const keyframes = [
 							{ transform: "rotate(0deg)" },
 							{ transform: "rotate(360deg)" }
@@ -923,34 +877,34 @@ export class PlayScene extends Scene {
 							iterations: System.Infinity,
 							easing: "linear"
 						};
-						spinnerElement.animate(keyframes, animationOptions);
+						spinnerHtmlElement.animate(keyframes, animationOptions);
 					})
 			)
-			.build(messageListNode);
+			.build(messageListElement);
 
 		this.scrollMessageListToBottom();
-		return messageNode;
+		return messageElement;
 	}
 
 	//==============================================================================
-	// 메시지 노드 제거.
+	// 메시지 Element 제거.
 	//==============================================================================
 	/**
-	 * @param { DomNode } messageNode
+	 * @param { Element } messageElement
 	 */
-	removeMessageNode(messageNode) {
-		const messageListNode = this.getMessageListNode();
-		messageListNode.removeChild(messageNode);
-		messageNode.destroy();
+	removeMessageElement(messageElement) {
+		const messageListElement = this.getMessageListElement();
+		messageListElement.removeChild(messageElement);
+		messageElement.destroy();
 	}
 
 	//==============================================================================
 	// 메시지 목록 맨 아래로 스크롤.
 	//==============================================================================
 	scrollMessageListToBottom() {
-		const messageListNode = this.getMessageListNode();
-		const element = messageListNode.getElement();
-		element.scrollTop = element.scrollHeight;
+		const messageListElement = this.getMessageListElement();
+		const htmlElement = messageListElement.getHtmlElement();
+		htmlElement.scrollTop = htmlElement.scrollHeight;
 	}
 
 	//==============================================================================
@@ -960,8 +914,8 @@ export class PlayScene extends Scene {
 	 * @param { string } text
 	 */
 	setStatusText(text) {
-		const statusNode = this.getStatusNode();
-		statusNode.setText(text);
+		const statusElement = this.getStatusElement();
+		statusElement.setText(text);
 	}
 
 	//==============================================================================
@@ -1001,11 +955,28 @@ export class PlayScene extends Scene {
 	 * @param { boolean } enabled
 	 */
 	setSendButtonEnabled(enabled) {
-		const sendButtonNode = this.getSendButtonNode();
-		const element = sendButtonNode.getElement();
-		element.disabled = !enabled;
-		element.style.opacity = enabled ? "1" : "0.5";
-		element.style.cursor = enabled ? "pointer" : "not-allowed";
+		const sendButtonElement = this.getSendButtonElement();
+		const htmlElement = sendButtonElement.getHtmlElement();
+		htmlElement.disabled = !enabled;
+		htmlElement.style.opacity = enabled ? "1" : "0.5";
+		htmlElement.style.cursor = enabled ? "pointer" : "not-allowed";
+	}
+
+	//==============================================================================
+	// 자동진행 버튼 활성/비활성.
+	//==============================================================================
+	/**
+	 * @param { boolean } enabled
+	 */
+	setAutoAdvanceButtonEnabled(enabled) {
+		const autoAdvanceButtonElement = this.getAutoAdvanceButtonElement();
+		if (autoAdvanceButtonElement === null) {
+			return;
+		}
+		const htmlElement = autoAdvanceButtonElement.getHtmlElement();
+		htmlElement.disabled = !enabled;
+		htmlElement.style.opacity = enabled ? "1" : "0.5";
+		htmlElement.style.cursor = enabled ? "pointer" : "not-allowed";
 	}
 
 	//==============================================================================
@@ -1015,162 +986,101 @@ export class PlayScene extends Scene {
 	 * @param { boolean } enabled
 	 */
 	setUserInputEnabled(enabled) {
-		const userInputNode = this.getUserInputNode();
-		const element = userInputNode.getElement();
-		element.disabled = !enabled;
-		element.style.opacity = enabled ? "1" : "0.5";
-		element.style.cursor = enabled ? "text" : "not-allowed";
+		const userInputElement = this.getUserInputElement();
+		const htmlElement = userInputElement.getHtmlElement();
+		htmlElement.disabled = !enabled;
+		htmlElement.style.opacity = enabled ? "1" : "0.5";
+		htmlElement.style.cursor = enabled ? "text" : "not-allowed";
 	}
 
 	//==============================================================================
 	// 비우기 버튼 처리. (textarea 내용을 빈 문자열로 설정하고 포커스)
 	//==============================================================================
 	handleClearClick() {
-		const userInputNode = this.getUserInputNode();
-		userInputNode.setValue("");
+		const userInputElement = this.getUserInputElement();
+		userInputElement.setValue("");
 		this.refreshSendButton();
-		const userInputElement = userInputNode.getElement();
-		userInputElement.focus();
+		const userInputHtmlElement = userInputElement.getHtmlElement();
+		userInputHtmlElement.focus();
 	}
 
 	//==============================================================================
-	// 진행 버튼 라벨/색상 갱신.
-	// - textarea 가 비어 있으면 "자동진행"(보라톤), 내용이 있으면 "진행"(블루톤).
+	// 괄호 버튼 처리.
+	// - 현재 커서 위치에 "()" 를 삽입(선택 범위가 있으면 감싸기) 하고 커서를 괄호 안쪽으로 옮긴다.
+	//==============================================================================
+	handleParenthesesClick() {
+		const userInputElement = this.getUserInputElement();
+		const userInputHtmlElement = userInputElement.getHtmlElement();
+		const startPosition = userInputHtmlElement.selectionStart;
+		const endPosition = userInputHtmlElement.selectionEnd;
+		const currentValue = userInputHtmlElement.value;
+		const beforeText = currentValue.substring(0, startPosition);
+		const selectedText = currentValue.substring(startPosition, endPosition);
+		const afterText = currentValue.substring(endPosition);
+		const newValue = `${beforeText}(${selectedText})${afterText}`;
+		userInputHtmlElement.value = newValue;
+		const cursorInsidePosition = startPosition + 1 + selectedText.length;
+		userInputHtmlElement.focus();
+		userInputHtmlElement.setSelectionRange(cursorInsidePosition, cursorInsidePosition);
+		this.refreshSendButton();
+	}
+
+	//==============================================================================
+	// 진행 버튼 활성/비활성 갱신.
+	// - textarea 가 비어 있으면 비활성, 내용이 있으면 활성.
 	//==============================================================================
 	refreshSendButton() {
-		const sendButtonNode = this.getSendButtonNode();
-		const userInputNode = this.getUserInputNode();
-		if (sendButtonNode === null) {
+		const sendButtonElement = this.getSendButtonElement();
+		const userInputElement = this.getUserInputElement();
+		if (sendButtonElement === null) {
 			return;
 		}
-		if (userInputNode === null) {
+		if (userInputElement === null) {
 			return;
 		}
-		const inputValue = userInputNode.getValue().trim();
-		const isAutoAdvance = (inputValue === "");
-		const sendButtonElement = sendButtonNode.getElement();
-		if (isAutoAdvance) {
-			sendButtonElement.textContent = "자동진행";
-			sendButtonElement.style.backgroundColor = "#6a3a8c";
-		}
-		else {
-			sendButtonElement.textContent = "진행";
-			sendButtonElement.style.backgroundColor = "#0e639c";
-		}
-	}
-
-	//==============================================================================
-	// 입력 모드 설정.
-	// - INPUT_MODE_DIALOGUE 또는 INPUT_MODE_DESCRIPTION.
-	//==============================================================================
-	/**
-	 * @param { string } mode
-	 */
-	setInputMode(mode) {
-		this.#inputMode = mode;
-		this.refreshInputModeStyles();
-	}
-
-	//==============================================================================
-	// 입력 모드별 스타일 적용.
-	// - 입력창 배경색과 모드 버튼의 활성/비활성 표시를 갱신한다.
-	//==============================================================================
-	refreshInputModeStyles() {
-		const mode = this.getInputMode();
-		const userInputNode = this.getUserInputNode();
-		const dialogueModeButtonNode = this.getDialogueModeButtonNode();
-		const mixedModeButtonNode = this.getMixedModeButtonNode();
-		const descriptionModeButtonNode = this.getDescriptionModeButtonNode();
-		if (userInputNode === null) {
-			return;
-		}
-		if (dialogueModeButtonNode === null) {
-			return;
-		}
-		if (mixedModeButtonNode === null) {
-			return;
-		}
-		if (descriptionModeButtonNode === null) {
-			return;
-		}
-
-		const dialogueActiveColor = "#2c3a4c";
-		const mixedActiveColor = "#2c4c4c";
-		const descriptionActiveColor = "#7a3450";
-		const inactiveBackgroundColor = "#2a2a2c";
-		const inactiveTextColor = "#888888";
-		const activeTextColor = "#ffffff";
-
-		const userInputElement = userInputNode.getElement();
-		const dialogueModeButtonElement = dialogueModeButtonNode.getElement();
-		const mixedModeButtonElement = mixedModeButtonNode.getElement();
-		const descriptionModeButtonElement = descriptionModeButtonNode.getElement();
-
-		dialogueModeButtonElement.style.backgroundColor = inactiveBackgroundColor;
-		dialogueModeButtonElement.style.color = inactiveTextColor;
-		mixedModeButtonElement.style.backgroundColor = inactiveBackgroundColor;
-		mixedModeButtonElement.style.color = inactiveTextColor;
-		descriptionModeButtonElement.style.backgroundColor = inactiveBackgroundColor;
-		descriptionModeButtonElement.style.color = inactiveTextColor;
-
-		if (mode === PlayScene.INPUT_MODE_DIALOGUE) {
-			userInputElement.style.backgroundColor = dialogueActiveColor;
-			userInputElement.placeholder = "대사를 입력하세요";
-			dialogueModeButtonElement.style.backgroundColor = dialogueActiveColor;
-			dialogueModeButtonElement.style.color = activeTextColor;
-		}
-		else if (mode === PlayScene.INPUT_MODE_MIXED) {
-			userInputElement.style.backgroundColor = mixedActiveColor;
-			userInputElement.placeholder = "대사 (괄호 안에 상황/설명) 형식으로 입력하세요";
-			mixedModeButtonElement.style.backgroundColor = mixedActiveColor;
-			mixedModeButtonElement.style.color = activeTextColor;
-		}
-		else {
-			userInputElement.style.backgroundColor = descriptionActiveColor;
-			userInputElement.placeholder = "상황을 입력하세요";
-			descriptionModeButtonElement.style.backgroundColor = descriptionActiveColor;
-			descriptionModeButtonElement.style.color = activeTextColor;
-		}
+		const inputValue = userInputElement.getValue().trim();
+		const hasInput = inputValue !== "";
+		this.setSendButtonEnabled(hasInput);
 	}
 
 	//==============================================================================
 	// 등장인물 목록 패널 토글.
 	//==============================================================================
 	toggleCharacterListPanel() {
-		const characterListPanelNode = this.getCharacterListPanelNode();
-		const characterListBackdropNode = this.getCharacterListBackdropNode();
-		if (characterListPanelNode === null) {
+		const characterListPanelElement = this.getCharacterListPanelElement();
+		const characterListBackdropElement = this.getCharacterListBackdropElement();
+		if (characterListPanelElement === null) {
 			return;
 		}
 		const isOpen = this.#isCharacterListPanelOpen;
 		const nextOpen = !isOpen;
 		this.#isCharacterListPanelOpen = nextOpen;
-		const panelElement = characterListPanelNode.getElement();
+		const panelHtmlElement = characterListPanelElement.getHtmlElement();
 		if (nextOpen) {
 			this.refreshCharacterListPanel();
-			panelElement.style.display = "flex";
-			if (characterListBackdropNode !== null) {
-				const backdropElement = characterListBackdropNode.getElement();
-				backdropElement.style.display = "block";
+			panelHtmlElement.style.display = "flex";
+			if (characterListBackdropElement !== null) {
+				const backdropHtmlElement = characterListBackdropElement.getHtmlElement();
+				backdropHtmlElement.style.display = "block";
 			}
 		}
 		else {
-			panelElement.style.display = "none";
-			if (characterListBackdropNode !== null) {
-				const backdropElement = characterListBackdropNode.getElement();
-				backdropElement.style.display = "none";
+			panelHtmlElement.style.display = "none";
+			if (characterListBackdropElement !== null) {
+				const backdropHtmlElement = characterListBackdropElement.getHtmlElement();
+				backdropHtmlElement.style.display = "none";
 			}
 		}
 	}
 
 	//==============================================================================
-	// 등장인물 패널 백드롭 노드 반환.
+	// 등장인물 패널 백드롭 Element 반환.
 	//==============================================================================
 	/**
-	 * @returns { DomNode | null }
+	 * @returns { Element | null }
 	 */
-	getCharacterListBackdropNode() {
-		return this.#characterListBackdropNode;
+	getCharacterListBackdropElement() {
+		return this.#characterListBackdropElement;
 	}
 
 	//==============================================================================
@@ -1178,11 +1088,11 @@ export class PlayScene extends Scene {
 	// - 세션에 등록된 모든 character 를 카드 형태로 다시 그린다.
 	//==============================================================================
 	refreshCharacterListPanel() {
-		const characterListPanelNode = this.getCharacterListPanelNode();
-		if (characterListPanelNode === null) {
+		const characterListPanelElement = this.getCharacterListPanelElement();
+		if (characterListPanelElement === null) {
 			return;
 		}
-		characterListPanelNode.removeChildren();
+		characterListPanelElement.removeChildren();
 
 		const session = this.getSession();
 		if (session === null) {
@@ -1190,7 +1100,7 @@ export class PlayScene extends Scene {
 		}
 		const characters = session.getCharacters();
 
-		DomLayout.create("div")
+		Layout.create("div")
 			.text("등장인물")
 			.style({
 				fontSize: "13px",
@@ -1199,22 +1109,22 @@ export class PlayScene extends Scene {
 				paddingBottom: "6px",
 				borderBottom: "1px solid #444444"
 			})
-			.build(characterListPanelNode);
+			.build(characterListPanelElement);
 
 		if (characters.length === 0) {
-			DomLayout.create("div")
+			Layout.create("div")
 				.text("등록된 등장인물이 없습니다.")
 				.style({
 					fontSize: "12px",
 					color: "#888888",
 					padding: "8px 0"
 				})
-				.build(characterListPanelNode);
+				.build(characterListPanelElement);
 			return;
 		}
 
 		for (const character of characters) {
-			this.appendCharacterCard(character, characterListPanelNode);
+			this.appendCharacterCard(character, characterListPanelElement);
 		}
 	}
 
@@ -1223,16 +1133,16 @@ export class PlayScene extends Scene {
 	//==============================================================================
 	/**
 	 * @param { object } character
-	 * @param { DomNode } parentNode
+	 * @param { Element } parentElement
 	 */
-	appendCharacterCard(character, parentNode) {
+	appendCharacterCard(character, parentElement) {
 		const name = character.getName();
 		const session = this.getSession();
 		const playerCharacter = session !== null ? session.getCharacter() : null;
 		const isPlayer = (playerCharacter !== null) && (character === playerCharacter);
 		const displayName = isPlayer ? `${name} (플레이어)` : name;
 
-		DomLayout.create("div")
+		Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "row",
@@ -1245,13 +1155,13 @@ export class PlayScene extends Scene {
 				color: "#ffffff"
 			})
 			.children(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(displayName)
 					.style({
 						fontWeight: "bold"
 					})
 			)
-			.build(parentNode);
+			.build(parentElement);
 	}
 
 	//==============================================================================
@@ -1260,16 +1170,16 @@ export class PlayScene extends Scene {
 	//==============================================================================
 	/**
 	 * @param { object } episode
-	 * @returns { DomNode }
+	 * @returns { Element }
 	 */
 	appendEpisodeCard(episode) {
-		const messageListNode = this.getMessageListNode();
+		const messageListElement = this.getMessageListElement();
 		const episodeId = episode.id;
 		const episodeTitle = episode.title;
 		const episodeSummary = episode.summary ?? "";
 
 		const cardChildren = [
-			DomLayout.create("div")
+			Layout.create("div")
 				.text("EPISODE")
 				.style({
 					fontSize: "11px",
@@ -1277,7 +1187,7 @@ export class PlayScene extends Scene {
 					color: "#c9a86c",
 					letterSpacing: "0.1em"
 				}),
-			DomLayout.create("div")
+			Layout.create("div")
 				.text(`${episodeId} — ${episodeTitle}`)
 				.style({
 					fontSize: "15px",
@@ -1287,7 +1197,7 @@ export class PlayScene extends Scene {
 		];
 		if (episodeSummary !== "") {
 			cardChildren.push(
-				DomLayout.create("div")
+				Layout.create("div")
 					.text(episodeSummary)
 					.style({
 						fontSize: "12px",
@@ -1297,7 +1207,7 @@ export class PlayScene extends Scene {
 			);
 		}
 
-		const cardNode = DomLayout.create("div")
+		const cardElement = Layout.create("div")
 			.style({
 				display: "flex",
 				flexDirection: "column",
@@ -1311,10 +1221,10 @@ export class PlayScene extends Scene {
 				textAlign: "center"
 			})
 			.children(...cardChildren)
-			.build(messageListNode);
+			.build(messageListElement);
 
 		this.scrollMessageListToBottom();
-		return cardNode;
+		return cardElement;
 	}
 
 	//==============================================================================
