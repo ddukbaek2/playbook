@@ -248,8 +248,11 @@ export class SelectScene extends Scene {
 	 * @param { object } book
 	 */
 	async handleBookClick(book) {
+		const timestamp = System.Date.now();
+		const randomSuffix = System.Math.random().toString(36).substring(2, 8);
+		const slotId = `${timestamp}_${randomSuffix}`;
 		const { PlayScene } = await import("./playscene.js");
-		const playScene = new PlayScene(book);
+		const playScene = new PlayScene({ book: book, slotId: slotId });
 		SceneManager.getInstance().replace(playScene);
 	}
 

@@ -14,11 +14,14 @@
 			"args": [
 				"${workspaceFolder}/tools/build.js"
 			],
-			"group": "build",
 			"presentation": {
 				"reveal": "always",
 				"panel": "shared",
 				"clear": true
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
 			},
 			"problemMatcher": []
 		},
@@ -33,6 +36,10 @@
 				"reveal": "always",
 				"panel": "shared",
 				"clear": true
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
 			},
 			"problemMatcher": []
 		},

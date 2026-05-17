@@ -45,7 +45,8 @@
 			"path": [
 				"${env:windir}\\System32\\cmd.exe",
 				"${env:windir}\\SysWOW64\\cmd.exe"
-			]
+			],
+			"args": ["/K", "chcp 65001 > nul"]
 		}
 	},
 

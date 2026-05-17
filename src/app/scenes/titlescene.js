@@ -50,14 +50,14 @@ export class TitleScene extends Scene {
 						marginBottom: "8px"
 					}),
 				DomLayout.create("div")
-					.text("AI 기반 상황극 플레이")
+					.text("AI 기반 스토리 플레이")
 					.style({
 						fontSize: "14px",
 						color: "#888888",
 						marginBottom: "16px"
 					}),
 				DomLayout.create("button")
-					.text("새 상황극 시작")
+					.text("새로하기")
 					.style({
 						width: "100%",
 						padding: "12px 16px",
@@ -70,25 +70,68 @@ export class TitleScene extends Scene {
 						cursor: "pointer"
 					})
 					.on("click", () => {
-						this.handleStartClick();
+						this.handleNewClick();
+					}),
+				DomLayout.create("button")
+					.text("이어하기")
+					.style({
+						width: "100%",
+						padding: "12px 16px",
+						fontSize: "15px",
+						fontWeight: "bold",
+						color: "#ffffff",
+						backgroundColor: "#3c3c3c",
+						border: "none",
+						borderRadius: "4px",
+						cursor: "pointer"
+					})
+					.on("click", () => {
+						this.handleContinueClick();
 					})
 			)
 			.build(this);
 	}
 
 	//==============================================================================
-	// 시작 버튼 처리.
+	// API 키 확인.
 	//==============================================================================
-	async handleStartClick() {
+	/**
+	 * @returns { boolean }
+	 */
+	checkApiKey() {
 		const apiKey = Secrets.get("geminiApiKey", "");
 		const hasApiKey = apiKey !== "" && apiKey.trim() !== "";
 		if (!hasApiKey) {
 			System.console.error("Gemini API 키가 secrets.json 에 설정되지 않았습니다.");
 			System.alert("서비스 준비 중입니다. 잠시 후 다시 시도해 주세요.");
+			return false;
+		}
+		return true;
+	}
+
+	//==============================================================================
+	// 새로하기 버튼 처리.
+	//==============================================================================
+	async handleNewClick() {
+		const ok = this.checkApiKey();
+		if (!ok) {
 			return;
 		}
 		const { SelectScene } = await import("./selectscene.js");
 		const selectScene = new SelectScene();
 		SceneManager.getInstance().replace(selectScene);
+	}
+
+	//==============================================================================
+	// 이어하기 버튼 처리.
+	//==============================================================================
+	async handleContinueClick() {
+		const ok = this.checkApiKey();
+		if (!ok) {
+			return;
+		}
+		const { RoomListScene } = await import("./roomlistscene.js");
+		const roomListScene = new RoomListScene();
+		SceneManager.getInstance().replace(roomListScene);
 	}
 }

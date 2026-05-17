@@ -28,6 +28,7 @@ export class Character extends Object {
 	/** @private @type { number } */ #strength;
 	/** @private @type { number } */ #dexterity;
 	/** @private @type { number } */ #intelligence;
+	/** @private @type { number } */ #constitution;
 	/** @private @type { number } */ #luck;
 	/** @private @type { number } */ #health;
 	/** @private @type { number } */ #maxHealth;
@@ -46,6 +47,7 @@ export class Character extends Object {
 	 * @param { number } [options.strength]
 	 * @param { number } [options.dexterity]
 	 * @param { number } [options.intelligence]
+	 * @param { number } [options.constitution]
 	 * @param { number } [options.luck]
 	 * @param { number } [options.health]
 	 * @param { number } [options.maxHealth]
@@ -62,6 +64,7 @@ export class Character extends Object {
 		this.#strength = safeOptions.strength ?? 10;
 		this.#dexterity = safeOptions.dexterity ?? 10;
 		this.#intelligence = safeOptions.intelligence ?? 10;
+		this.#constitution = safeOptions.constitution ?? 10;
 		this.#luck = safeOptions.luck ?? 10;
 		this.#maxHealth = safeOptions.maxHealth ?? 100;
 		this.#health = safeOptions.health ?? this.#maxHealth;
@@ -151,6 +154,26 @@ export class Character extends Object {
 	 */
 	setIntelligence(intelligence) {
 		this.#intelligence = intelligence;
+	}
+
+	//==============================================================================
+	// 체질 반환.
+	//==============================================================================
+	/**
+	 * @returns { number }
+	 */
+	getConstitution() {
+		return this.#constitution;
+	}
+
+	//==============================================================================
+	// 체질 설정.
+	//==============================================================================
+	/**
+	 * @param { number } constitution
+	 */
+	setConstitution(constitution) {
+		this.#constitution = constitution;
 	}
 
 	//==============================================================================

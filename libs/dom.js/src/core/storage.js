@@ -27,6 +27,29 @@ export class Storage extends Object {
 	}
 
 	//==============================================================================
+	// 키 목록 반환. (prefix 지정 시 prefix 로 시작하는 키만)
+	//==============================================================================
+	/**
+	 * @param { string } [prefix]
+	 * @returns { Array<string> }
+	 */
+	static getKeys(prefix = "") {
+		const result = [];
+		const localStorage = System.window.localStorage;
+		const totalCount = localStorage.length;
+		for (let index = 0; index < totalCount; index = index + 1) {
+			const key = localStorage.key(index);
+			if (key === null) {
+				continue;
+			}
+			if (prefix === "" || key.startsWith(prefix)) {
+				result.push(key);
+			}
+		}
+		return result;
+	}
+
+	//==============================================================================
 	// 값 제거.
 	//==============================================================================
 	/**
