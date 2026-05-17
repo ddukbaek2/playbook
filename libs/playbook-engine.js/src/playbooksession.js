@@ -529,6 +529,117 @@ export class PlaybookSession extends Object {
 	}
 
 	//==============================================================================
+	// 추천 행동 N개 생성.
+	// - 시나리오 진행이 아닌 보조 LLM 호출. 현재 상황을 기반으로 짧은 행동/대사 후보를 반환.
+	// - 반환은 N개 이하 문자열 배열. (모델이 N개 미만 줄 수도 있음)
+	// - 본 메서드는 #isWaitingResponse 잠금을 사용하지 않는다. 사용자가 도중에 패널을 닫고
+	//   다시 열어도 후속 호출이 막히지 않도록 하기 위함. (진행/자동진행 act() 와는 독립적으로 동작)
+	//==============================================================================
+	/**
+	 * @param { number } count
+	 * @returns { Promise<Array<string>> }
+	 */
+	async suggestActions(count) {
+		const safeCount = (typeof count === "number" && count > 0) ? count : 3;
+		const suggestionSystemPrompt = this.buildSuggestionSystemPrompt(safeCount);
+		const llmContents = this.buildLlmContents();
+		const llmClient = this.getLlmClient();
+		const rawReplyText = await llmClient.generate(suggestionSystemPrompt, llmContents);
+		const suggestions = this.parseSuggestions(rawReplyText, safeCount);
+		return suggestions;
+	}
+
+	//==============================================================================
+	// 추천 생성용 시스템 프롬프트 합성.
+	// - 페르소나 + book.systemPrompt + 추천 요청 지침 만 포함.
+	// - 출력 포맷/사용자 입력 보존/에피소드 전환 지침은 추천 응답에 불필요하므로 제외.
+	//==============================================================================
+	/**
+	 * @param { number } count
+	 * @returns { string }
+	 */
+	buildSuggestionSystemPrompt(count) {
+		const sections = [];
+
+		const persona = this.getPersona();
+		if (persona !== null) {
+			const personaText = persona.toPromptText();
+			if (personaText !== "") {
+				sections.push(personaText);
+			}
+		}
+
+		const book = this.getBook();
+		const baseSystemPrompt = book.systemPrompt ?? "";
+		if (baseSystemPrompt !== "") {
+			sections.push(baseSystemPrompt);
+		}
+
+		sections.push(this.buildSuggestionRequestText(count));
+		return sections.join("\n\n");
+	}
+
+	//==============================================================================
+	// 추천 요청 지침 텍스트.
+	//==============================================================================
+	/**
+	 * @param { number } count
+	 * @returns { string }
+	 */
+	buildSuggestionRequestText(count) {
+		const lines = [];
+		lines.push("[추천 응답 요청]");
+		lines.push(`현재 상황에서 플레이어(주인공) 가 바로 다음 턴에 할 만한 행동 또는 대사를 ${count}가지 제안하세요.`);
+		lines.push("출력 규칙:");
+		lines.push(`- 정확히 ${count}줄. 각 줄은 "1. ..." 처럼 번호 + 점 + 공백 + 내용 형식.`);
+		lines.push("- 각 제안은 한 문장(15~80자).");
+		lines.push("- 서로 다른 방향성으로 구성하세요. (예: 적극적 / 회피적 / 의외의 선택)");
+		lines.push("- 장면 묘사, NPC 대사, 결과 예측, [다음화] 태그, 부가 설명 없이 오직 번호 매긴 제안 줄만 출력합니다.");
+		return lines.join("\n");
+	}
+
+	//==============================================================================
+	// 추천 응답 파싱.
+	// - \"1. ...\", \"2) ...\" 등 번호 패턴으로 시작하는 줄만 추출. 최대 count 개.
+	//==============================================================================
+	/**
+	 * @param { string } text
+	 * @param { number } count
+	 * @returns { Array<string> }
+	 */
+	parseSuggestions(text, count) {
+		if (typeof text !== "string") {
+			return [];
+		}
+		const lines = text.split(/\r?\n/);
+		const suggestions = [];
+		const bulletStripRegex = /^\s*(?:[-*•▪︎●]|\d+\s*[\.\)\]:])\s*/;
+		for (const line of lines) {
+			const trimmedLine = line.trim();
+			if (trimmedLine === "") {
+				continue;
+			}
+			const strippedLine = trimmedLine.replace(bulletStripRegex, "");
+			if (strippedLine === trimmedLine) {
+				continue;
+			}
+			let suggestion = strippedLine.trim();
+			suggestion = suggestion.replace(/^\*\*(.+)\*\*$/, "$1");
+			suggestion = suggestion.replace(/^\*(.+)\*$/, "$1");
+			suggestion = suggestion.replace(/^["'“‘]/, "").replace(/["'”’]$/, "");
+			suggestion = suggestion.trim();
+			if (suggestion === "") {
+				continue;
+			}
+			suggestions.push(suggestion);
+			if (suggestions.length >= count) {
+				break;
+			}
+		}
+		return suggestions;
+	}
+
+	//==============================================================================
 	// 응답 텍스트에서 `[다음화: <id>]` 태그 파싱.
 	// - 발견하면 태그를 제거한 텍스트와 episodeId 를 반환.
 	// - 없으면 원문 그대로 + episodeId=null.

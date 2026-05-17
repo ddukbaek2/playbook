@@ -36,6 +36,10 @@ export class PlayDocument extends Document {
 	/** @private @type { Element | null } */ #sendButtonElement;
 	/** @private @type { Element | null } */ #autoAdvanceButtonElement;
 	/** @private @type { Element | null } */ #clearButtonElement;
+	/** @private @type { Element | null } */ #suggestButtonElement;
+	/** @private @type { Element | null } */ #suggestionsContainerElement;
+	/** @private @type { boolean } */ #isSuggestionsOpen;
+	/** @private @type { Array<string> | null } */ #cachedSuggestions;
 	/** @private @type { Element | null } */ #statusElement;
 	/** @private @type { Element | null } */ #menuButtonElement;
 	/** @private @type { Element | null } */ #characterListPanelElement;
@@ -64,6 +68,10 @@ export class PlayDocument extends Document {
 		this.#sendButtonElement = null;
 		this.#autoAdvanceButtonElement = null;
 		this.#clearButtonElement = null;
+		this.#suggestButtonElement = null;
+		this.#suggestionsContainerElement = null;
+		this.#isSuggestionsOpen = false;
+		this.#cachedSuggestions = null;
 		this.#statusElement = null;
 		this.#menuButtonElement = null;
 		this.#characterListPanelElement = null;
@@ -138,6 +146,26 @@ export class PlayDocument extends Document {
 	 */
 	getAutoAdvanceButtonElement() {
 		return this.#autoAdvanceButtonElement;
+	}
+
+	//==============================================================================
+	// 추천 버튼 Element 반환.
+	//==============================================================================
+	/**
+	 * @returns { Element | null }
+	 */
+	getSuggestButtonElement() {
+		return this.#suggestButtonElement;
+	}
+
+	//==============================================================================
+	// 추천 카드 컨테이너 Element 반환.
+	//==============================================================================
+	/**
+	 * @returns { Element | null }
+	 */
+	getSuggestionsContainerElement() {
+		return this.#suggestionsContainerElement;
 	}
 
 	//==============================================================================
@@ -476,6 +504,15 @@ export class PlayDocument extends Document {
 					.children(
 						Layout.create("div")
 							.style({
+								display: "none",
+								flexDirection: "column",
+								gap: "6px"
+							})
+							.bind((element) => {
+								this.#suggestionsContainerElement = element;
+							}),
+						Layout.create("div")
+							.style({
 								display: "flex",
 								flexDirection: "row",
 								gap: "4px"
@@ -517,11 +554,31 @@ export class PlayDocument extends Document {
 										this.#clearButtonElement = element;
 									}),
 								Layout.create("button")
+									.text("추천")
+									.style({
+										flex: "0 0 60px",
+										height: "32px",
+										marginLeft: "auto",
+										padding: "0 10px",
+										fontSize: "13px",
+										fontWeight: "bold",
+										color: "#ffffff",
+										backgroundColor: "#4a6a3c",
+										border: "none",
+										borderRadius: "4px",
+										cursor: "pointer"
+									})
+									.on("click", () => {
+										this.handleSuggestClick();
+									})
+									.bind((element) => {
+										this.#suggestButtonElement = element;
+									}),
+								Layout.create("button")
 									.text("자동진행")
 									.style({
 										flex: "0 0 80px",
 										height: "32px",
-										marginLeft: "auto",
 										padding: "0 10px",
 										fontSize: "13px",
 										fontWeight: "bold",
@@ -727,6 +784,207 @@ export class PlayDocument extends Document {
 	}
 
 	//==============================================================================
+	// 추천 버튼 처리. (토글)
+	// - 카드가 열려 있으면 닫는다.
+	// - 닫혀 있으면: 현재 턴의 캐시가 있으면 그대로 재사용, 없으면 LLM 으로 새로 받아 캐시한다.
+	// - 캐시는 새 턴이 진행(act 완료) 될 때마다 초기화된다.
+	// - suggestActions 는 세션 잠금을 사용하지 않으므로 사용자가 도중에 닫고 다시 눌러도
+	//   새 호출이 막히지 않는다.
+	//==============================================================================
+	async handleSuggestClick() {
+		if (this.#isSuggestionsOpen) {
+			this.hideSuggestions();
+			return;
+		}
+		const session = this.getSession();
+		if (session === null) {
+			return;
+		}
+		// act() (진행/자동진행 응답 대기) 중에는 추천 호출을 차단한다.
+		if (session.isWaitingResponse()) {
+			return;
+		}
+
+		// 캐시 히트: 추가 LLM 호출 없이 즉시 카드 노출.
+		if (this.#cachedSuggestions !== null) {
+			this.openSuggestionsContainer();
+			this.renderSuggestionCards(this.#cachedSuggestions);
+			return;
+		}
+
+		this.showSuggestionsLoading();
+		try {
+			const suggestions = await session.suggestActions(3);
+			if (!this.#isSuggestionsOpen) {
+				return;
+			}
+			if (suggestions.length === 0) {
+				this.renderSuggestionsError("추천을 만들어내지 못했어요. 다시 시도해 보세요.");
+				return;
+			}
+			this.#cachedSuggestions = suggestions;
+			this.renderSuggestionCards(suggestions);
+		}
+		catch (error) {
+			System.console.error("[Suggest] failed:", error);
+			if (!this.#isSuggestionsOpen) {
+				return;
+			}
+			const errorText = error && error.message ? error.message : System.String(error);
+			this.renderSuggestionsError(`추천 실패: ${errorText}`);
+		}
+	}
+
+	//==============================================================================
+	// 추천 카드 컨테이너만 노출. (로딩 메시지 없이)
+	//==============================================================================
+	openSuggestionsContainer() {
+		this.#isSuggestionsOpen = true;
+		const suggestionsContainerElement = this.getSuggestionsContainerElement();
+		if (suggestionsContainerElement === null) {
+			return;
+		}
+		suggestionsContainerElement.removeChildren();
+		const htmlElement = suggestionsContainerElement.getHtmlElement();
+		htmlElement.style.display = "flex";
+	}
+
+	//==============================================================================
+	// 추천 카드 영역 숨김.
+	//==============================================================================
+	hideSuggestions() {
+		this.#isSuggestionsOpen = false;
+		const suggestionsContainerElement = this.getSuggestionsContainerElement();
+		if (suggestionsContainerElement === null) {
+			return;
+		}
+		suggestionsContainerElement.removeChildren();
+		const htmlElement = suggestionsContainerElement.getHtmlElement();
+		htmlElement.style.display = "none";
+	}
+
+	//==============================================================================
+	// 추천 카드 영역 노출 + 로딩 인디케이터 표시.
+	//==============================================================================
+	showSuggestionsLoading() {
+		this.#isSuggestionsOpen = true;
+		const suggestionsContainerElement = this.getSuggestionsContainerElement();
+		if (suggestionsContainerElement === null) {
+			return;
+		}
+		suggestionsContainerElement.removeChildren();
+		const htmlElement = suggestionsContainerElement.getHtmlElement();
+		htmlElement.style.display = "flex";
+
+		Layout.create("div")
+			.text("추천 생성 중... (수 초 걸릴 수 있어요)")
+			.style({
+				fontSize: "13px",
+				color: "#888888",
+				padding: "10px",
+				textAlign: "center",
+				fontStyle: "italic"
+			})
+			.build(suggestionsContainerElement);
+	}
+
+	//==============================================================================
+	// 추천 카드 3장 렌더.
+	//==============================================================================
+	/**
+	 * @param { Array<string> } suggestions
+	 */
+	renderSuggestionCards(suggestions) {
+		const suggestionsContainerElement = this.getSuggestionsContainerElement();
+		if (suggestionsContainerElement === null) {
+			return;
+		}
+		suggestionsContainerElement.removeChildren();
+		for (const suggestion of suggestions) {
+			this.appendSuggestionCard(suggestion, suggestionsContainerElement);
+		}
+	}
+
+	//==============================================================================
+	// 단일 추천 카드 추가.
+	// - hover 시 배경 변화, 클릭 시 handleSuggestionCardClick.
+	//==============================================================================
+	/**
+	 * @param { string } suggestionText
+	 * @param { Element } parentElement
+	 */
+	appendSuggestionCard(suggestionText, parentElement) {
+		const baseBackgroundColor = "#3a4a3c";
+		const hoverBackgroundColor = "#4a6a4c";
+		Layout.create("div")
+			.text(suggestionText)
+			.style({
+				padding: "10px 14px",
+				backgroundColor: baseBackgroundColor,
+				border: "1px solid #5a7a5c",
+				borderRadius: "6px",
+				fontSize: "13px",
+				color: "#ffffff",
+				lineHeight: "1.5",
+				cursor: "pointer",
+				transition: "background-color 0.12s",
+				whiteSpace: "pre-wrap",
+				wordBreak: "break-word"
+			})
+			.on("mouseenter", (event) => {
+				event.currentTarget.style.backgroundColor = hoverBackgroundColor;
+			})
+			.on("mouseleave", (event) => {
+				event.currentTarget.style.backgroundColor = baseBackgroundColor;
+			})
+			.on("click", () => {
+				this.handleSuggestionCardClick(suggestionText);
+			})
+			.build(parentElement);
+	}
+
+	//==============================================================================
+	// 추천 오류/안내 메시지 렌더.
+	//==============================================================================
+	/**
+	 * @param { string } message
+	 */
+	renderSuggestionsError(message) {
+		const suggestionsContainerElement = this.getSuggestionsContainerElement();
+		if (suggestionsContainerElement === null) {
+			return;
+		}
+		suggestionsContainerElement.removeChildren();
+		Layout.create("div")
+			.text(message)
+			.style({
+				fontSize: "13px",
+				color: "#ff9988",
+				padding: "10px",
+				textAlign: "center"
+			})
+			.build(suggestionsContainerElement);
+	}
+
+	//==============================================================================
+	// 추천 카드 클릭 처리.
+	// - 카드를 닫고 입력창을 카드 내용으로 채운 뒤 즉시 진행한다.
+	//==============================================================================
+	/**
+	 * @param { string } suggestionText
+	 */
+	async handleSuggestionCardClick(suggestionText) {
+		this.hideSuggestions();
+		const userInputElement = this.getUserInputElement();
+		if (userInputElement === null) {
+			return;
+		}
+		userInputElement.setValue(suggestionText);
+		this.refreshSendButton();
+		await this.handleSendClick();
+	}
+
+	//==============================================================================
 	// 자동진행 처리.
 	// - 사용자 입력과 무관하게 "(자동 진행)" 을 auto 모드로 송신하여 1턴 진행한다.
 	// - 입력창 내용은 건드리지 않는다.
@@ -763,6 +1021,7 @@ export class PlayDocument extends Document {
 	async requestAIResponse(userInput, mode) {
 		this.setSendButtonEnabled(false);
 		this.setAutoAdvanceButtonEnabled(false);
+		this.setSuggestButtonEnabled(false);
 		this.setUserInputEnabled(false);
 
 		const thinkingElement = this.appendSpinnerMessage();
@@ -791,9 +1050,12 @@ export class PlayDocument extends Document {
 		finally {
 			this.setUserInputEnabled(true);
 			this.setAutoAdvanceButtonEnabled(true);
+			this.setSuggestButtonEnabled(true);
 			this.saveSessionHistory();
 			this.refreshTurnCountStatus();
 			this.refreshSendButton();
+			// 새 턴이 완료됐으므로 추천 캐시를 비워, 다음 추천 클릭 시 새로 생성한다.
+			this.#cachedSuggestions = null;
 		}
 	}
 
@@ -1013,6 +1275,23 @@ export class PlayDocument extends Document {
 			return;
 		}
 		const htmlElement = autoAdvanceButtonElement.getHtmlElement();
+		htmlElement.disabled = !enabled;
+		htmlElement.style.opacity = enabled ? "1" : "0.5";
+		htmlElement.style.cursor = enabled ? "pointer" : "not-allowed";
+	}
+
+	//==============================================================================
+	// 추천 버튼 활성/비활성.
+	//==============================================================================
+	/**
+	 * @param { boolean } enabled
+	 */
+	setSuggestButtonEnabled(enabled) {
+		const suggestButtonElement = this.getSuggestButtonElement();
+		if (suggestButtonElement === null) {
+			return;
+		}
+		const htmlElement = suggestButtonElement.getHtmlElement();
 		htmlElement.disabled = !enabled;
 		htmlElement.style.opacity = enabled ? "1" : "0.5";
 		htmlElement.style.cursor = enabled ? "pointer" : "not-allowed";
