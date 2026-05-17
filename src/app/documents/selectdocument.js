@@ -2,7 +2,14 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Document, DocumentManager, Layout, Element } from "../../../libs/document-engine.js/import.js";
+import { Document, DocumentManager, Layout, Element, Storage, Popup } from "../../../libs/document-engine.js/import.js";
+import { Limits } from "../limits.js";
+
+
+//==============================================================================
+// 방 슬롯 키 prefix. (RoomListDocument 와 동일한 규약을 공유)
+//==============================================================================
+const SLOT_KEY_PREFIX = "playbook.slot.";
 
 
 //==============================================================================
@@ -248,6 +255,18 @@ export class SelectDocument extends Document {
 	 * @param { object } book
 	 */
 	async handleBookClick(book) {
+		if (Limits.enabledTotalRoomsLimit) {
+			const slotKeys = Storage.getKeys(SLOT_KEY_PREFIX);
+			const slotCount = slotKeys.length;
+			const maxRoomsTotal = Limits.maxRoomsTotal;
+			if (slotCount >= maxRoomsTotal) {
+				Popup.alert(
+					`방은 최대 ${maxRoomsTotal}개까지만 만들 수 있습니다.\n현재 ${slotCount}개의 방이 있습니다.\n\n이어하기 화면에서 기존 방을 삭제한 뒤 다시 시도해 주세요.`,
+					{ title: "방 개수 제한" }
+				);
+				return;
+			}
+		}
 		const timestamp = System.Date.now();
 		const randomSuffix = System.Math.random().toString(36).substring(2, 8);
 		const slotId = `${timestamp}_${randomSuffix}`;

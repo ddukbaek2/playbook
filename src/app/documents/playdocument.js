@@ -2,9 +2,10 @@
 // 포함 모듈 목록.
 //==============================================================================
 const System = globalThis;
-import { Document, DocumentManager, Layout, Element, Storage } from "../../../libs/document-engine.js/import.js";
+import { Document, DocumentManager, Layout, Element, Storage, Popup } from "../../../libs/document-engine.js/import.js";
 import { GeminiClient, PlaybookSession, Persona, Character } from "../../../libs/playbook-engine.js/import.js";
 import { Secrets } from "../secrets.js";
+import { Limits } from "../limits.js";
 
 
 //==============================================================================
@@ -246,7 +247,8 @@ export class PlayDocument extends Document {
 			character: character,
 			messageHistory: savedState.messageHistory,
 			currentEpisodeId: savedState.currentEpisodeId,
-			visitedEpisodeIds: savedState.visitedEpisodeIds
+			visitedEpisodeIds: savedState.visitedEpisodeIds,
+			currentEpisodeTurnCount: savedState.currentEpisodeTurnCount ?? undefined
 		});
 
 		this.registerBookNpcs();
@@ -268,7 +270,7 @@ export class PlayDocument extends Document {
 	//==============================================================================
 	/**
 	 * @param { string } storageKey
-	 * @returns { { messageHistory: Array | null, currentEpisodeId: string | null, visitedEpisodeIds: Array<string> | null } }
+	 * @returns { { messageHistory: Array | null, currentEpisodeId: string | null, visitedEpisodeIds: Array<string> | null, currentEpisodeTurnCount: number | null } }
 	 */
 	loadStoredSession(storageKey) {
 		const stored = Storage.getJson(storageKey, null);
@@ -276,20 +278,23 @@ export class PlayDocument extends Document {
 			return {
 				messageHistory: null,
 				currentEpisodeId: null,
-				visitedEpisodeIds: null
+				visitedEpisodeIds: null,
+				currentEpisodeTurnCount: null
 			};
 		}
 		if (System.Array.isArray(stored)) {
 			return {
 				messageHistory: stored,
 				currentEpisodeId: null,
-				visitedEpisodeIds: null
+				visitedEpisodeIds: null,
+				currentEpisodeTurnCount: null
 			};
 		}
 		return {
 			messageHistory: stored.messageHistory ?? null,
 			currentEpisodeId: stored.currentEpisodeId ?? null,
-			visitedEpisodeIds: stored.visitedEpisodeIds ?? null
+			visitedEpisodeIds: stored.visitedEpisodeIds ?? null,
+			currentEpisodeTurnCount: stored.currentEpisodeTurnCount ?? null
 		};
 	}
 
@@ -316,7 +321,8 @@ export class PlayDocument extends Document {
 			lastPlayedAt: now,
 			messageHistory: sessionState.messageHistory,
 			currentEpisodeId: sessionState.currentEpisodeId,
-			visitedEpisodeIds: sessionState.visitedEpisodeIds
+			visitedEpisodeIds: sessionState.visitedEpisodeIds,
+			currentEpisodeTurnCount: sessionState.currentEpisodeTurnCount
 		};
 		Storage.setJson(storageKey, slotData);
 	}
@@ -385,24 +391,6 @@ export class PlayDocument extends Document {
 							})
 							.bind((element) => {
 								this.#statusElement = element;
-							}),
-						Layout.create("button")
-							.text("자동진행")
-							.style({
-								padding: "6px 12px",
-								fontSize: "13px",
-								fontWeight: "bold",
-								color: "#ffffff",
-								backgroundColor: "#6a3a8c",
-								border: "none",
-								borderRadius: "4px",
-								cursor: "pointer"
-							})
-							.on("click", () => {
-								this.handleAutoAdvanceClick();
-							})
-							.bind((element) => {
-								this.#autoAdvanceButtonElement = element;
 							}),
 						Layout.create("button")
 							.text("≡ 메뉴")
@@ -510,7 +498,7 @@ export class PlayDocument extends Document {
 										this.handleParenthesesClick();
 									}),
 								Layout.create("button")
-									.text("비우기")
+									.text("지우기")
 									.style({
 										flex: "0 0 60px",
 										height: "32px",
@@ -527,6 +515,27 @@ export class PlayDocument extends Document {
 									})
 									.bind((element) => {
 										this.#clearButtonElement = element;
+									}),
+								Layout.create("button")
+									.text("자동진행")
+									.style({
+										flex: "0 0 80px",
+										height: "32px",
+										marginLeft: "auto",
+										padding: "0 10px",
+										fontSize: "13px",
+										fontWeight: "bold",
+										color: "#ffffff",
+										backgroundColor: "#6a3a8c",
+										border: "none",
+										borderRadius: "4px",
+										cursor: "pointer"
+									})
+									.on("click", () => {
+										this.handleAutoAdvanceClick();
+									})
+									.bind((element) => {
+										this.#autoAdvanceButtonElement = element;
 									})
 							),
 						Layout.create("div")
@@ -670,6 +679,28 @@ export class PlayDocument extends Document {
 	}
 
 	//==============================================================================
+	// 턴 수 제한 체크. (제한에 걸리면 팝업 띄우고 true 반환)
+	//==============================================================================
+	/**
+	 * @returns { boolean } 제한에 걸렸으면 true.
+	 */
+	checkTurnLimitAndWarn() {
+		if (!Limits.enabledPerRoomTurnLimit) {
+			return false;
+		}
+		const turnCount = this.computeTurnCount();
+		const maxTurnsPerRoom = Limits.maxTurnsPerRoom;
+		if (turnCount < maxTurnsPerRoom) {
+			return false;
+		}
+		Popup.alert(
+			`이 방은 ${maxTurnsPerRoom}턴까지만 진행할 수 있습니다.\n현재 ${turnCount}턴 진행되었습니다.\n\n다른 흐름으로 시도하려면 새로하기에서 새 방을 만들어 보세요.`,
+			{ title: "턴 수 제한" }
+		);
+		return true;
+	}
+
+	//==============================================================================
 	// 전송 처리. (입력창 내용 → 혼합 모드로 전송)
 	// - 입력창이 비어 있으면 아무 동작 없음 (자동진행은 별도 버튼).
 	//==============================================================================
@@ -683,6 +714,9 @@ export class PlayDocument extends Document {
 		if (inputValue === "") {
 			return;
 		}
+		if (this.checkTurnLimitAndWarn()) {
+			return;
+		}
 		const submittedText = inputValue;
 		const submittedMode = PlayDocument.INPUT_MODE_MIXED;
 
@@ -693,11 +727,16 @@ export class PlayDocument extends Document {
 	}
 
 	//==============================================================================
-	// 자동진행 처리. (입력창과 무관하게 "(자동 진행)" 을 보낸다)
+	// 자동진행 처리.
+	// - 사용자 입력과 무관하게 "(자동 진행)" 을 auto 모드로 송신하여 1턴 진행한다.
+	// - 입력창 내용은 건드리지 않는다.
 	//==============================================================================
 	async handleAutoAdvanceClick() {
 		const session = this.getSession();
 		if (session.isWaitingResponse()) {
+			return;
+		}
+		if (this.checkTurnLimitAndWarn()) {
 			return;
 		}
 		const submittedText = "(자동 진행)";
@@ -707,12 +746,12 @@ export class PlayDocument extends Document {
 	}
 
 	//==============================================================================
-	// 뒤로가기 처리.
+	// 뒤로가기 처리. (방 목록 = 이어하기 도큐먼트로 복귀)
 	//==============================================================================
 	async handleBackClick() {
-		const { TitleDocument } = await import("./titledocument.js");
-		const titleDocument = new TitleDocument();
-		DocumentManager.getInstance().replace(titleDocument, { transition: "slide-right" });
+		const { RoomListDocument } = await import("./roomlistdocument.js");
+		const roomListDocument = new RoomListDocument();
+		DocumentManager.getInstance().replace(roomListDocument, { transition: "slide-right" });
 	}
 
 	//==============================================================================
@@ -1027,7 +1066,8 @@ export class PlayDocument extends Document {
 
 	//==============================================================================
 	// 진행 버튼 활성/비활성 갱신.
-	// - textarea 가 비어 있으면 비활성, 내용이 있으면 활성.
+	// - textarea 가 비어 있으면 진행 비활성, 내용이 있으면 활성.
+	// - 자동진행 버튼은 입력값과 무관하게 항상 활성 (AI 응답 대기 중에만 별도로 비활성화됨).
 	//==============================================================================
 	refreshSendButton() {
 		const sendButtonElement = this.getSendButtonElement();
@@ -1120,12 +1160,50 @@ export class PlayDocument extends Document {
 					padding: "8px 0"
 				})
 				.build(characterListPanelElement);
-			return;
+		}
+		else {
+			for (const character of characters) {
+				this.appendCharacterCard(character, characterListPanelElement);
+			}
 		}
 
-		for (const character of characters) {
-			this.appendCharacterCard(character, characterListPanelElement);
-		}
+		this.appendExitButton(characterListPanelElement);
+	}
+
+	//==============================================================================
+	// 메뉴 패널 하단 나가기 버튼 추가.
+	// - 클릭 시 RoomListDocument 로 복귀(handleBackClick 과 동일 동선).
+	//==============================================================================
+	/**
+	 * @param { Element } parentElement
+	 */
+	appendExitButton(parentElement) {
+		Layout.create("div")
+			.style({
+				marginTop: "8px",
+				paddingTop: "10px",
+				borderTop: "1px solid #444444"
+			})
+			.children(
+				Layout.create("button")
+					.text("나가기")
+					.style({
+						width: "100%",
+						padding: "10px",
+						fontSize: "13px",
+						fontWeight: "bold",
+						color: "#ffcccc",
+						backgroundColor: "#5c2a2a",
+						border: "1px solid #7a3a3a",
+						borderRadius: "4px",
+						cursor: "pointer"
+					})
+					.on("click", () => {
+						this.toggleCharacterListPanel();
+						this.handleBackClick();
+					})
+			)
+			.build(parentElement);
 	}
 
 	//==============================================================================

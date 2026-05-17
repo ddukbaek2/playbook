@@ -18,6 +18,7 @@ export class PlaybookSession extends Object {
 	// 상수 목록.
 	//==============================================================================
 	/** @type { number } */ static MAX_TURNS = 20;
+	/** @type { number } */ static MIN_TURNS_PER_EPISODE = 3;
 	/** @type { RegExp } */ static TRANSITION_REGEX = /\[다음화\s*:\s*([\w가-힣_-]+)\s*\]/;
 
 	//==============================================================================
@@ -33,6 +34,7 @@ export class PlaybookSession extends Object {
 	/** @private @type { Map<string, object> } */ #episodesById;
 	/** @private @type { string | null } */ #currentEpisodeId;
 	/** @private @type { Set<string> } */ #visitedEpisodeIds;
+	/** @private @type { number } */ #currentEpisodeTurnCount;
 	/** @private @type { Array<{ role: string, text: string }> } */ #messageHistory;
 	/** @private @type { boolean } */ #isWaitingResponse;
 	/** @private @type { boolean } */ #isStarted;
@@ -49,6 +51,7 @@ export class PlaybookSession extends Object {
 	 * @param { Array<{ role: string, text: string }> } [options.messageHistory]
 	 * @param { string } [options.currentEpisodeId]
 	 * @param { Array<string> } [options.visitedEpisodeIds]
+	 * @param { number } [options.currentEpisodeTurnCount]
 	 */
 	constructor(options) {
 		super();
@@ -113,6 +116,14 @@ export class PlaybookSession extends Object {
 		}
 		if (resolvedCurrentEpisodeId !== null) {
 			this.#visitedEpisodeIds.add(resolvedCurrentEpisodeId);
+		}
+
+		const requestedCurrentEpisodeTurnCount = options.currentEpisodeTurnCount;
+		if (typeof requestedCurrentEpisodeTurnCount === "number" && requestedCurrentEpisodeTurnCount >= 0) {
+			this.#currentEpisodeTurnCount = requestedCurrentEpisodeTurnCount;
+		}
+		else {
+			this.#currentEpisodeTurnCount = 0;
 		}
 
 		if (character !== null) {
@@ -406,8 +417,29 @@ export class PlaybookSession extends Object {
 		return {
 			messageHistory: messageHistory.slice(),
 			currentEpisodeId: this.#currentEpisodeId,
-			visitedEpisodeIds: visitedEpisodeIds
+			visitedEpisodeIds: visitedEpisodeIds,
+			currentEpisodeTurnCount: this.#currentEpisodeTurnCount
 		};
+	}
+
+	//==============================================================================
+	// 현재 화에서 누적된 턴 수 반환.
+	//==============================================================================
+	/**
+	 * @returns { number }
+	 */
+	getCurrentEpisodeTurnCount() {
+		return this.#currentEpisodeTurnCount;
+	}
+
+	//==============================================================================
+	// 한 화에서 다음 화로 넘어가기 위한 최소 턴 수 반환.
+	//==============================================================================
+	/**
+	 * @returns { number }
+	 */
+	getMinTurnsPerEpisode() {
+		return PlaybookSession.MIN_TURNS_PER_EPISODE;
 	}
 
 	//==============================================================================
@@ -465,13 +497,20 @@ export class PlaybookSession extends Object {
 			const cleanedText = parsed.text;
 			const requestedEpisodeId = parsed.episodeId;
 
+			// 현재 화의 턴 카운트는 LLM 응답이 들어온 시점에서 +1.
+			this.#currentEpisodeTurnCount = this.#currentEpisodeTurnCount + 1;
+
 			let transitioned = false;
 			const previousEpisodeId = this.#currentEpisodeId;
 			let nextEpisodeId = null;
-			if (requestedEpisodeId !== null && this.#episodesById.has(requestedEpisodeId)) {
+			const minTurnsPerEpisode = PlaybookSession.MIN_TURNS_PER_EPISODE;
+			const hasMetMinTurnGate = this.#currentEpisodeTurnCount >= minTurnsPerEpisode;
+			const isValidNextEpisode = (requestedEpisodeId !== null) && this.#episodesById.has(requestedEpisodeId);
+			if (isValidNextEpisode && hasMetMinTurnGate) {
 				nextEpisodeId = requestedEpisodeId;
 				this.#currentEpisodeId = requestedEpisodeId;
 				this.#visitedEpisodeIds.add(requestedEpisodeId);
+				this.#currentEpisodeTurnCount = 0;
 				transitioned = true;
 			}
 
@@ -641,6 +680,9 @@ export class PlaybookSession extends Object {
 		if (episodeSummary !== "") {
 			lines.push(`- 화 요약: ${episodeSummary}`);
 		}
+		const currentEpisodeTurnCount = this.getCurrentEpisodeTurnCount();
+		const minTurnsPerEpisode = this.getMinTurnsPerEpisode();
+		lines.push(`- 현재 화 누적 턴 수: ${currentEpisodeTurnCount} (전환 가능 최소 턴: ${minTurnsPerEpisode})`);
 
 		if (transitions.length === 0) {
 			lines.push("- 가능한 다음 화: 없음 (마지막 화)");
@@ -661,9 +703,11 @@ export class PlaybookSession extends Object {
 			}
 			lines.push(`- 가능한 다음 화: ${transitionDescriptions.join(", ")}`);
 			lines.push("");
-			lines.push("[전환 지침]");
-			lines.push("이 화의 흐름이 자연스러운 종결에 이르면 응답의 마지막 줄에 `[다음화: <id>]` 형식으로 다음 화 ID 를 표기하세요.");
-			lines.push("가능한 다음 화 ID 중에서 하나를 골라야 합니다. 사용자의 행동을 충분히 반영한 자연스러운 흐름에서만 전환을 수행하고, 강제로 빠르게 진행하지 마세요.");
+			lines.push("[전환 지침 (엄격)]");
+			lines.push(`- 현재 화에서 최소 ${minTurnsPerEpisode} 턴이 누적되기 전에는 절대로 [다음화] 태그를 출력하지 마세요. 사용자의 단 한두 번의 응답만으로 전환하는 것은 시나리오를 망치는 행위입니다.`);
+			lines.push("- 최소 턴 조건이 충족된 이후에도, 화 요약에 적힌 사건의 시작·중간·끝이 모두 자연스럽게 묘사되었고, 사용자가 그 흐름에 충분히 참여했으며, 다음 화로 넘어가는 것이 부자연스럽지 않을 때에만 응답의 마지막 줄에 `[다음화: <id>]` 형식으로 다음 화 ID 를 표기하세요.");
+			lines.push("- 가능한 다음 화 ID 중에서 하나를 골라야 합니다. 판단이 애매하면 전환하지 말고 현재 화의 묘사를 더 풍부하게 이어 가세요. 전환은 한 번 일어나면 되돌릴 수 없으므로 신중하게 결정하세요.");
+			lines.push("- 사용자가 \"다음 화로 가자\" 같은 메타 요청을 직접 하지 않는 한, 위 두 조건이 모두 만족될 때까지 전환을 보류합니다.");
 		}
 
 		return lines.join("\n");

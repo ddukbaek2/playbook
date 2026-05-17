@@ -24,3 +24,4 @@ export {
 	resolveTransition
 } from "./src/core/transition.js";
 export { Application } from "./src/core/application.js";
+export { Popup } from "./src/core/popup.js";
